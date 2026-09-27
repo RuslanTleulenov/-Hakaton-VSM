@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Перегон — тренажёр проводника ВСМ</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo">ВСМ</span>
+      <div>
+        <div class="title">Перегон</div>
+        <div class="subtitle">тренажёр проводника высокоскоростной магистрали</div>
+      </div>
+    </div>
+    <div class="who" id="who"></div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button data-view="catalog" class="active">Рейсы</button>
+    <button data-view="profile">Профиль</button>
+    <button data-view="leaderboard">Рейтинг</button>
+    <button data-view="analytics">Аналитика</button>
+    <button data-view="notifications">Уведомления <span class="badge" id="bell"></span></button>
+  </nav>
+
+  <main id="app"></main>
+
+  <footer class="foot">
+    Демо-стенд. Все профили и данные синтетические, персональных данных пассажиров и сотрудников нет.
+    <a href="/docs">Документация API</a>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
