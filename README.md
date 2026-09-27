@@ -13,6 +13,18 @@
 «Примеры ситуаций взаимодействия поездного персонала с пассажирами»
 (51 ситуация) и стандарты СТО РЖД по обслуживанию пассажиров ВСМ.
 
+## Артефакты сдачи
+
+| Что требует кейс | Где смотреть |
+|---|---|
+| Репозиторий с осмысленной историей коммитов | [история коммитов](../../commits/main) — 23 коммита, инкрементально |
+| Рабочий прототип, запускаемый по инструкции | [#запуск](#запуск) — три строки, нужен только Python 3.11+ |
+| Описание архитектуры + диаграммы | [docs/01-architecture.md](docs/01-architecture.md) · [компоненты](docs/diagrams/components.svg) · [последовательность хода](docs/diagrams/sequence-choice.svg) |
+| Описание API | [docs/02-api.md](docs/02-api.md) + живой Swagger на `/docs` после запуска |
+| User Flow и примеры игровых сценариев | [docs/03-user-flow.md](docs/03-user-flow.md) · [content/scenarios](content/scenarios) · [content/trips](content/trips) |
+| Ограничения и план развития | [docs/04-limits-roadmap.md](docs/04-limits-roadmap.md) |
+| Презентация проекта | [docs/presentation/peregon.pptx](docs/presentation/peregon.pptx) |
+
 ## Что именно сделано
 
 | Требование кейса | Где реализовано |
