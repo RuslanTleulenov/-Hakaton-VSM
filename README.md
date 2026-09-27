@@ -117,5 +117,6 @@ docs/                    архитектура, API, user flow, огранич�
 - [Где что менять за минуту](docs/05-where-to-change.md)
 - [Данные и безопасность](docs/06-security.md)
 - [Сценарий демонстрации](docs/07-demo-script.md)
+- [Презентация проекта (PPTX)](docs/presentation/peregon.pptx) и [как её пересобрать](docs/presentation/README.md)
 - [Арт лайт-новеллы: контракт и промпты](docs/08-art-prompts.md)
 - [Заявка: идея решения](docs/00-application.md)
