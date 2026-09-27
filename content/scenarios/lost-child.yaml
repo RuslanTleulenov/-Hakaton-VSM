@@ -1,0 +1,227 @@
+id: lost-child
+title: Ребёнок потерялся
+summary: >-
+  Перегон Тверь — Бологое. В служебной зоне стоит мальчик лет шести и
+  плачет: родителей рядом нет. Одновременно по рации вызывает начальник
+  поезда — выбор приоритета тоже оценивается.
+segment: Тверь — Бологое
+minutes_to_stop: 22
+car_class: стандарт
+difficulty: 2
+start_loyalty: 70
+start_safety: 85
+sources:
+  - "«Примеры ситуаций взаимодействия поездного персонала с пассажирами», ситуации 30, 37, 47"
+start: found
+
+nodes:
+  found:
+    speaker: narrator
+    text: >-
+      Мальчик лет шести стоит у служебной зоны и плачет. В ту же секунду
+      рация: «Седьмой вагон, ответьте начальнику поезда».
+    timer: 15
+    critical: true
+    timeout:
+      goto: alone
+      reason: "Ни ребёнок, ни рация не получили ответа — мальчик пошёл по вагону сам"
+      effects:
+        loyalty: -8
+        safety: -12
+    options:
+      - id: child_first
+        step: acknowledge
+        text: "Присесть к ребёнку: «Не волнуйся, я помогу найти твоих. Побудь рядом со мной»"
+        reason: "Ребёнок без сопровождения — приоритет; рация подождёт тридцать секунд (ситуация 30)"
+        effects:
+          loyalty: 10
+          safety: 8
+          competences: {service: 3, safety: 2, deescalation: 1}
+          set: [child_safe]
+        goto: radio_back
+      - id: radio_first
+        step: action
+        text: "Сначала ответить по рации, ребёнку показать жестом «сейчас»"
+        reason: "Связь с бригадой важна, но ребёнок остался один на один со страхом"
+        better: "Сначала обозначить ребёнку, что он не один, и только потом брать рацию"
+        effects:
+          loyalty: -4
+          safety: -4
+          competences: {teamwork: 1, service: -1}
+        goto: radio_back
+      - id: search_parents
+        step: action
+        text: "Взять ребёнка за руку и пойти искать родителей по вагонам"
+        reason: "Уводить ребёнка с места нельзя: родители вернутся туда, где его оставили"
+        better: "Оставаться на месте с ребёнком и передать информацию начальнику поезда"
+        effects:
+          loyalty: 2
+          safety: -12
+          competences: {safety: -2}
+        goto: alone
+
+  radio_back:
+    speaker: radio
+    text: >-
+      «Седьмой вагон, у нас обращение по вашему вагону — пассажир ищет
+      ребёнка. Что у вас?»
+    timer: 20
+    timeout:
+      goto: announcement
+      reason: "Начальник поезда не получил подтверждения и объявлял вслепую"
+      effects:
+        safety: -6
+    options:
+      - id: report_child
+        step: solution
+        text: "«Ребёнок у меня в служебной зоне, в безопасности. Прошу объявление без имени»"
+        reason: "Объявление делается без лишних персональных данных ребёнка (ситуация 30)"
+        effects:
+          loyalty: 6
+          safety: 12
+          competences: {safety: 3, teamwork: 3}
+          set: [chief_informed, privacy_kept]
+        goto: announcement
+      - id: report_with_name
+        step: solution
+        text: "«Мальчик, Миша Кузнецов, шесть лет, вагон семь» — продиктовать всё по громкой связи"
+        reason: "Персональные данные ребёнка в эфир не передаются — достаточно вагона и приметы"
+        better: "«Ребёнок находится у проводника седьмого вагона» — этого достаточно, чтобы родители пришли"
+        effects:
+          loyalty: 2
+          safety: -8
+          competences: {safety: -2}
+          set: [chief_informed]
+        goto: announcement
+
+  announcement:
+    speaker: narrator
+    text: >-
+      Объявление прошло. Мальчик перестал плакать, но крепко держится
+      за край стойки. До Бологого пятнадцать минут.
+    timer: 25
+    timeout:
+      goto: parents
+      reason: "Ребёнок ждал молча: время до прихода родителей прошло в тишине"
+      effects:
+        loyalty: -3
+    options:
+      - id: distract
+        step: solution
+        text: "Дать детский набор и журнал, сесть рядом и поговорить"
+        reason: "Отвлечь и быть рядом — то, что методичка предписывает при волнении (ситуации 29, 30)"
+        effects:
+          loyalty: 9
+          competences: {service: 3, deescalation: 1}
+        goto: parents
+      - id: to_chief
+        step: solution
+        text: "Проводить ребёнка в купе начальника поезда"
+        reason: "Прямая рекомендация методички: ребёнка провожают к начальнику поезда"
+        requires: [chief_informed]
+        effects:
+          loyalty: 5
+          safety: 8
+          competences: {safety: 2, teamwork: 2}
+        goto: parents
+      - id: back_to_work
+        step: action
+        text: "Вернуться к обслуживанию, ребёнок побудет в служебной зоне"
+        reason: "Ребёнка без сопровождения нельзя оставлять одного даже в служебной зоне"
+        better: "Остаться рядом или передать начальнику поезда — но не оставлять одного"
+        effects:
+          loyalty: -8
+          safety: -14
+          competences: {safety: -3, service: -2}
+        goto: alone
+
+  parents:
+    speaker: passenger
+    text: >-
+      Прибегает мать: «Я на две минуты в бистро отошла! Почему вы его
+      по всему поезду объявляете, теперь все смотрят!»
+    timer: 20
+    timeout:
+      goto: neutral_end
+      reason: "Мать осталась без ответа и ушла с обидой на бригаду"
+      effects:
+        loyalty: -6
+    options:
+      - id: calm_mother
+        step: acknowledge
+        text: "«Понимаю, вы испугались. Главное — он в порядке и был под присмотром»"
+        reason: "Признание чувств вместо спора снимает напряжение и не обвиняет мать (ситуация 37)"
+        effects:
+          loyalty: 10
+          competences: {deescalation: 3, service: 2}
+        goto: good_end
+      - id: rules_to_mother
+        step: rule
+        text: "«Обращаю ваше внимание: ребёнка нельзя оставлять без сопровождения»"
+        reason: "Правило верное, но сказанное первым звучит как обвинение при свидетелях"
+        better: "Сначала успокоить, потом обозначить правило — порядок ролевой модели"
+        effects:
+          loyalty: -5
+          safety: 4
+          competences: {safety: 1, deescalation: -1}
+        goto: good_end
+      - id: promise_watch
+        step: solution
+        text: "«Если понадобится отойти — скажите мне, я буду рядом в зоне обслуживания»"
+        reason: "Помощь предлагается ситуативно, без принятия ответственности за ребёнка (ситуация 47)"
+        effects:
+          loyalty: 8
+          safety: 4
+          competences: {service: 3}
+        goto: good_end
+
+  alone:
+    speaker: narrator
+    text: >-
+      Мальчика замечает другой пассажир и ведёт к соседнему проводнику.
+      Мать находит ребёнка через десять минут — не там, где оставила.
+    timer: 15
+    timeout:
+      goto: bad_end
+      reason: "Ситуация закрылась без участия проводника, которому её доверили"
+      effects:
+        loyalty: -8
+        safety: -10
+    options:
+      - id: own_it
+        step: solution
+        text: "Доложить начальнику поезда, что ребёнок был найден и оставлен без присмотра"
+        reason: "Честный доклад возвращает ситуацию в штатный порядок и фиксирует её"
+        effects:
+          loyalty: 3
+          safety: 8
+          competences: {teamwork: 2, safety: 1}
+        goto: neutral_end
+      - id: silent
+        step: action
+        text: "Не поднимать тему: всё же закончилось хорошо"
+        reason: "Незафиксированный инцидент с ребёнком — риск для всей бригады"
+        effects:
+          safety: -12
+          competences: {safety: -3, teamwork: -2}
+        goto: bad_end
+
+  good_end:
+    ending: good
+    text: >-
+      Мать благодарит, мальчик машет из-за её плеча. Эта семья едет дальше
+      с ощущением, что за ними присматривают, — и это ровно то, за что
+      пассажиры платят на высокоскоростной магистрали.
+
+  neutral_end:
+    ending: neutral
+    text: >-
+      Ребёнок с родителями, инцидент зафиксирован. Осадок остался
+      у всех участников, но опасных последствий нет.
+
+  bad_end:
+    ending: bad
+    text: >-
+      Обращение матери поступает на горячую линию в тот же день.
+      В разборе: ребёнок без сопровождения находился в зоне обслуживания
+      и был оставлен без присмотра проводника.

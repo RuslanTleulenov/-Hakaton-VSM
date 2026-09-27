@@ -9,13 +9,14 @@ from __future__ import annotations
 import sqlite3
 import uuid
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from . import achievements as ach
 from . import engine
 from .db import dumps, loads
-from .domain import COMPETENCES, Scenario
+from .domain import COMPETENCES, Scenario, Trip
+from .loader import Content
 
 # Уровни проводника по опыту: стажёр → наставник.
 LEVELS = [
@@ -33,6 +34,11 @@ def now() -> datetime:
 
 def _iso(moment: datetime) -> str:
     return moment.isoformat()
+
+
+def timestamp() -> str:
+    """Метка времени сервера для выгрузок во внешние системы."""
+    return _iso(now())
 
 
 def level_of(xp: int) -> dict[str, Any]:
@@ -151,7 +157,9 @@ def _node_view(scenario: Scenario, state: engine.RunState) -> dict:
     }
 
 
-def _run_view(run_id: str, scenario: Scenario, state: engine.RunState) -> dict:
+def _run_view(run_id: str, content: Content, state: engine.RunState) -> dict:
+    scenario = content.scenario(state.scenario_id)
+    trip = content.trips.get(state.trip_id) if state.trip_id else None
     return {
         "run_id": run_id,
         "scenario": {
@@ -161,6 +169,22 @@ def _run_view(run_id: str, scenario: Scenario, state: engine.RunState) -> dict:
             "minutes_to_stop": scenario.minutes_to_stop,
             "car_class": scenario.car_class,
         },
+        "trip": None
+        if trip is None
+        else {
+            "id": trip.id,
+            "title": trip.title,
+            "route": trip.route,
+            "position": len(state.segments) + 1,
+            "total": len(trip.segments),
+            "left": list(state.queue),
+            # Память рейса: только те флаги, которым рейс дал человеческое имя.
+            "memory": [
+                {"flag": flag, "label": label}
+                for flag, label in trip.memory_labels.items()
+                if flag in state.flags
+            ],
+        },
         "loyalty": state.loyalty,
         "safety": state.safety,
         "finished": state.finished,
@@ -168,18 +192,42 @@ def _run_view(run_id: str, scenario: Scenario, state: engine.RunState) -> dict:
     }
 
 
-def start_run(conn: sqlite3.Connection, login: str, scenario: Scenario) -> dict:
+def start_run(
+    conn: sqlite3.Connection,
+    login: str,
+    content: Content,
+    scenario_id: str | None = None,
+    trip_id: str | None = None,
+    challenge_week: str | None = None,
+) -> dict:
+    """Начать партию: отдельный инцидент (`scenario_id`) или рейс (`trip_id`)."""
     conductor = get_conductor(conn, login)
     if conductor is None:
         raise LookupError(f"нет проводника {login!r}")
-    state = engine.start(scenario)
+    if trip_id:
+        trip = content.trip(trip_id)
+        state = engine.start_trip(trip, content.scenario(trip.segments[0]))
+    elif scenario_id:
+        state = engine.start(content.scenario(scenario_id))
+    else:
+        raise ValueError("нужен scenario_id или trip_id")
+
     run_id = uuid.uuid4().hex
     conn.execute(
-        "INSERT INTO runs (id, conductor_id, scenario_id, state, node_shown_at) VALUES (?, ?, ?, ?, ?)",
-        (run_id, conductor["id"], scenario.id, _state_to_json(state), _iso(now())),
+        "INSERT INTO runs (id, conductor_id, scenario_id, trip_id, challenge_week, state, node_shown_at)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            run_id,
+            conductor["id"],
+            state.scenario_id,
+            trip_id,
+            challenge_week,
+            _state_to_json(state),
+            _iso(now()),
+        ),
     )
     conn.commit()
-    return _run_view(run_id, scenario, state)
+    return _run_view(run_id, content, state)
 
 
 def _load_run(conn: sqlite3.Connection, run_id: str) -> sqlite3.Row:
@@ -192,32 +240,45 @@ def _load_run(conn: sqlite3.Connection, run_id: str) -> sqlite3.Row:
 def choose(
     conn: sqlite3.Connection,
     run_id: str,
-    scenario: Scenario,
+    content: Content,
     option_id: str | None,
-    catalog: list[dict],
 ) -> dict:
+    """Ход проводника. Время решения берётся по серверным часам."""
     row = _load_run(conn, run_id)
     if row["finished"]:
         raise ValueError("партия уже завершена")
     state = _state_from_json(row["state"])
+    scenario = content.scenario(state.scenario_id)
     shown_at = datetime.fromisoformat(row["node_shown_at"])
     seconds = (now() - shown_at).total_seconds()
 
     event = engine.choose(scenario, state, option_id, seconds)
-    position = len(state.events)
     conn.execute(
         "INSERT INTO run_events (run_id, position, payload) VALUES (?, ?, ?)",
-        (run_id, position, dumps(asdict(event))),
-    )
-    conn.execute(
-        "UPDATE runs SET state = ?, node_shown_at = ? WHERE id = ?",
-        (_state_to_json(state), _iso(now()), run_id),
+        (run_id, len(state.events), dumps(asdict(event))),
     )
 
-    view = _run_view(run_id, scenario, state)
+    segment_done = None
+    if state.finished and state.queue:
+        # Инцидент закончился, но рейс продолжается: шкалы и память едут дальше.
+        segment_done = {
+            "scenario_id": scenario.id,
+            "title": scenario.title,
+            "ending": state.ending,
+            "text": scenario.node(state.node_id).text,
+        }
+        engine.continue_trip(state, content.scenario(state.queue[0]))
+
+    conn.execute(
+        "UPDATE runs SET state = ?, scenario_id = ?, node_shown_at = ? WHERE id = ?",
+        (_state_to_json(state), state.scenario_id, _iso(now()), run_id),
+    )
+
+    view = _run_view(run_id, content, state)
     view["event"] = asdict(event)
+    view["segment_done"] = segment_done
     if state.finished:
-        view["result"] = _finish(conn, row, scenario, state, catalog)
+        view["result"] = _finish(conn, row, content, state)
     conn.commit()
     return view
 
@@ -225,10 +286,10 @@ def choose(
 def _finish(
     conn: sqlite3.Connection,
     row: sqlite3.Row,
-    scenario: Scenario,
+    content: Content,
     state: engine.RunState,
-    catalog: list[dict],
 ) -> dict:
+    scenario = content.scenario(state.scenario_id)
     result = engine.score(scenario, state)
     conn.execute(
         "UPDATE runs SET finished = 1, result = ?, finished_at = ? WHERE id = ?",
@@ -247,7 +308,8 @@ def _finish(
             (row["conductor_id"],),
         )
     }
-    earned = ach.newly_earned(catalog, already, result, completed)
+    streak = streak_days(conn, row["conductor_id"], including_today=True)
+    earned = ach.newly_earned(content.achievements, already, result, completed, streak)
     for achievement in earned:
         conn.execute(
             "INSERT INTO earned_achievements (conductor_id, achievement_id, run_id) VALUES (?, ?, ?)",
@@ -260,18 +322,53 @@ def _finish(
             f"Новое достижение: {achievement['title']}",
             achievement["description"],
         )
+    before = conn.execute("SELECT xp FROM conductors WHERE id = ?", (row["conductor_id"],)).fetchone()["xp"]
+    _notify_level_up(conn, row["conductor_id"], before - result["xp"], before)
     result["earned_achievements"] = earned
+    result["streak"] = streak
     return result
 
 
-def debrief(conn: sqlite3.Connection, run_id: str, scenario: Scenario) -> dict:
-    """Разбор рейса: каждое изменение шкал с причиной и «как было лучше»."""
+def _notify_level_up(conn: sqlite3.Connection, conductor_id: int, before: int, after: int) -> None:
+    """Уведомление о новом уровне — только когда порог действительно пройден."""
+    if level_of(before)["name"] != level_of(after)["name"]:
+        notify(
+            conn,
+            conductor_id,
+            "level_up",
+            f"Новый уровень: {level_of(after)['name']}",
+            f"Накоплено {after} очков опыта.",
+        )
+
+
+def debrief(conn: sqlite3.Connection, run_id: str, content: Content) -> dict:
+    """Разбор рейса: каждое изменение шкал с причиной, альтернативой и выводом."""
     row = _load_run(conn, run_id)
     state = _state_from_json(row["state"])
-    events = [asdict(e) for e in state.events]
+    scenario = content.scenario(state.scenario_id)
     result = loads(row["result"]) if row["result"] else engine.score(scenario, state)
+    trip = content.trips.get(row["trip_id"]) if row["trip_id"] else None
+
+    # Ходы группируются по инцидентам: в рейсе их несколько.
+    by_scenario: list[dict] = []
+    for event in state.events:
+        scenario_id = event.scenario_id or state.scenario_id
+        if not by_scenario or by_scenario[-1]["scenario_id"] != scenario_id:
+            part = content.scenario(scenario_id)
+            by_scenario.append(
+                {
+                    "scenario_id": scenario_id,
+                    "title": part.title,
+                    "segment": part.segment,
+                    "sources": part.sources,
+                    "events": [],
+                }
+            )
+        by_scenario[-1]["events"].append(asdict(event))
+
     return {
         "run_id": run_id,
+        "trip": None if trip is None else {"id": trip.id, "title": trip.title, "route": trip.route},
         "scenario": {
             "id": scenario.id,
             "title": scenario.title,
@@ -280,7 +377,8 @@ def debrief(conn: sqlite3.Connection, run_id: str, scenario: Scenario) -> dict:
         },
         "result": result,
         "competence_titles": COMPETENCES,
-        "events": events,
+        "events": [asdict(event) for event in state.events],
+        "parts": by_scenario,
         "advice": _advice(result),
     }
 
@@ -305,6 +403,13 @@ def _advice(result: dict) -> list[str]:
         )
     for key in result["weak"]:
         out.append(f"Проседает компетенция «{COMPETENCES[key]}» — добавим сценарии на неё в следующий рейс.")
+    if len(result.get("segments", [])) > 1:
+        bad = [s for s in result["segments"] if s.get("ending") == "bad"]
+        if bad:
+            out.append(
+                "В рейсе несколько инцидентов подряд, и неудачный исход одного из них тянет "
+                "за собой остальные: пассажиры помнят, как с ними обошлись на прошлом перегоне."
+            )
     if not out:
         out.append("Ровный рейс: обе шкалы удержаны, критические решения приняты вовремя.")
     return out
@@ -337,7 +442,7 @@ def hotspots(conn: sqlite3.Connection, limit: int = 10) -> list[dict]:
     buckets: dict[tuple[str, str], dict[str, Any]] = {}
     for row in rows:
         event = loads(row["payload"])
-        key = (row["scenario_id"], event["node_id"])
+        key = (event.get("scenario_id") or row["scenario_id"], event["node_id"])
         bucket = buckets.setdefault(
             key,
             {"scenario_id": key[0], "node_id": key[1], "attempts": 0, "damage": 0, "timeouts": 0},
@@ -375,12 +480,12 @@ def mark_read(conn: sqlite3.Connection, notification_id: int) -> None:
     conn.commit()
 
 
-def recommended(conn: sqlite3.Connection, login: str, scenarios: dict[str, Scenario]) -> list[str]:
+def recommended(conn: sqlite3.Connection, login: str, content: Content) -> list[str]:
     """Адаптивный подбор: вперёд идут сценарии, которых нет в истории,
     затем те, что были пройдены хуже всего."""
     conductor = get_conductor(conn, login)
     if conductor is None:
-        return list(scenarios)
+        return list(content.scenarios)
     rows = conn.execute(
         "SELECT scenario_id, json_extract(result, '$.score') AS score FROM runs"
         " WHERE conductor_id = ? AND finished = 1",
@@ -389,4 +494,228 @@ def recommended(conn: sqlite3.Connection, login: str, scenarios: dict[str, Scena
     best: dict[str, int] = {}
     for row in rows:
         best[row["scenario_id"]] = max(best.get(row["scenario_id"], 0), int(row["score"] or 0))
-    return sorted(scenarios, key=lambda sid: best.get(sid, -1))
+    return sorted(content.scenarios, key=lambda sid: best.get(sid, -1))
+
+
+# --- серии, рейс недели, сгорающие баллы ------------------------------------
+
+# Баллы челленджа сгорают, если проводник не выходил на тренажёр столько дней.
+POINTS_EXPIRE_DAYS = 7
+CHALLENGE_BONUS_XP = 150
+
+
+def _run_dates(conn: sqlite3.Connection, conductor_id: int) -> list[date]:
+    rows = conn.execute(
+        "SELECT DISTINCT date(finished_at) AS day FROM runs"
+        " WHERE conductor_id = ? AND finished = 1 ORDER BY day DESC",
+        (conductor_id,),
+    ).fetchall()
+    return [date.fromisoformat(row["day"]) for row in rows if row["day"]]
+
+
+def streak_days(conn: sqlite3.Connection, conductor_id: int, including_today: bool = False) -> int:
+    """Серия: сколько дней подряд проводник выходил на тренажёр.
+
+    Серия не рвётся «вчерашним» днём: пока сегодня не закончилось, вчерашняя
+    серия считается живой — иначе смена в ночь обнуляла бы прогресс.
+    """
+    days = set(_run_dates(conn, conductor_id))
+    today = now().date()
+    if including_today:
+        days.add(today)
+    if not days:
+        return 0
+    cursor = today if today in days else today - timedelta(days=1)
+    streak = 0
+    while cursor in days:
+        streak += 1
+        cursor -= timedelta(days=1)
+    return streak
+
+
+def current_week(moment: datetime | None = None) -> str:
+    """ISO-неделя вида 2026-W40 — ключ челленджа «Рейс недели»."""
+    iso = (moment or now()).isocalendar()
+    return f"{iso.year}-W{iso.week:02d}"
+
+
+def challenge(conn: sqlite3.Connection, content: Content, login: str | None = None) -> dict:
+    """Рейс недели: один и тот же сценарий для всех — сравнение честное.
+
+    Сценарий выбирается детерминированно по номеру недели, поэтому у всех
+    бригад он совпадает и не зависит от того, кто первым открыл приложение.
+    """
+    week = current_week()
+    order = sorted(content.scenarios)
+    scenario_id = order[int(week.split("-W")[1]) % len(order)]
+    scenario = content.scenario(scenario_id)
+
+    board = conn.execute(
+        "SELECT c.login, c.display_name, c.brigade,"
+        " MAX(json_extract(r.result, '$.score')) AS best"
+        " FROM runs r JOIN conductors c ON c.id = r.conductor_id"
+        " WHERE r.finished = 1 AND r.challenge_week = ?"
+        " GROUP BY c.id ORDER BY best DESC LIMIT 20",
+        (week,),
+    ).fetchall()
+
+    played = False
+    if login:
+        conductor = get_conductor(conn, login)
+        played = bool(
+            conductor
+            and conn.execute(
+                "SELECT 1 FROM runs WHERE conductor_id = ? AND challenge_week = ? AND finished = 1",
+                (conductor["id"], week),
+            ).fetchone()
+        )
+    return {
+        "week": week,
+        "scenario": {"id": scenario.id, "title": scenario.title, "summary": scenario.summary},
+        "bonus_xp": CHALLENGE_BONUS_XP,
+        "played": played,
+        "leaderboard": [
+            {**dict(row), "place": index + 1} for index, row in enumerate(board)
+        ],
+    }
+
+
+def expiring_points(conn: sqlite3.Connection, login: str) -> dict:
+    """Сколько очков сгорит, если не выйти на тренажёр.
+
+    Сгорают только очки челленджей за последнюю неделю — базовый опыт
+    не отбирается: наказывать за отпуск тренажёр не должен.
+    """
+    conductor = get_conductor(conn, login)
+    if conductor is None:
+        raise LookupError(f"нет проводника {login!r}")
+    row = conn.execute(
+        "SELECT COALESCE(SUM(json_extract(result, '$.xp')), 0) AS points, MAX(finished_at) AS last"
+        " FROM runs WHERE conductor_id = ? AND finished = 1 AND challenge_week IS NOT NULL",
+        (conductor["id"],),
+    ).fetchone()
+    last_run = _run_dates(conn, conductor["id"])
+    days_idle = (now().date() - last_run[0]).days if last_run else None
+    left = None if days_idle is None else max(0, POINTS_EXPIRE_DAYS - days_idle)
+    return {
+        "points": int(row["points"] or 0),
+        "days_idle": days_idle,
+        "days_left": left,
+        "expires_after_days": POINTS_EXPIRE_DAYS,
+    }
+
+
+def competence_trend(conn: sqlite3.Connection, login: str, limit: int = 10) -> dict:
+    """Динамика компетенций по последним рейсам — видно, что растёт, а что нет."""
+    conductor = get_conductor(conn, login)
+    if conductor is None:
+        raise LookupError(f"нет проводника {login!r}")
+    rows = conn.execute(
+        "SELECT scenario_id, finished_at, result FROM runs"
+        " WHERE conductor_id = ? AND finished = 1 ORDER BY finished_at DESC LIMIT ?",
+        (conductor["id"], limit),
+    ).fetchall()
+    results = [loads(row["result"]) for row in rows][::-1]
+    points = [
+        {
+            "finished_at": row["finished_at"],
+            "scenario_id": row["scenario_id"],
+            "score": result["score"],
+            "competences": result["competences"],
+        }
+        for row, result in zip(rows[::-1], results)
+    ]
+    half = len(results) // 2 or 1
+    gaps = []
+    for key, title in COMPETENCES.items():
+        early = sum(r["competences"].get(key, 0) for r in results[:half])
+        late = sum(r["competences"].get(key, 0) for r in results[-half:])
+        gaps.append({"key": key, "title": title, "early": early, "late": late, "delta": late - early})
+    return {"points": points, "competences": sorted(gaps, key=lambda g: g["delta"])}
+
+
+# --- интеграция с внешними системами ---------------------------------------
+
+
+def progress_export(
+    conn: sqlite3.Connection,
+    catalog: list[dict],
+    depot: str | None = None,
+    brigade: str | None = None,
+) -> list[dict]:
+    """Учебный прогресс для HR/LMS.
+
+    В выгрузке нет персональных данных: учётная запись, подразделение и
+    показатели обучения. ФИО сотрудника HR-система знает сама — тренажёру
+    оно не нужно и потому не хранится.
+    """
+    query = "SELECT id, login, brigade, depot, xp FROM conductors"
+    clauses, params = [], []
+    if depot:
+        clauses.append("depot = ?")
+        params.append(depot)
+    if brigade:
+        clauses.append("brigade = ?")
+        params.append(brigade)
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    rows = conn.execute(query + " ORDER BY xp DESC", params).fetchall()
+
+    out = []
+    for row in rows:
+        results = [
+            loads(r["result"])
+            for r in conn.execute(
+                "SELECT result FROM runs WHERE conductor_id = ? AND finished = 1", (row["id"],)
+            )
+        ]
+        competences = {key: 0 for key in COMPETENCES}
+        for result in results:
+            for key, value in result["competences"].items():
+                competences[key] = competences.get(key, 0) + value
+        earned = [
+            r["achievement_id"]
+            for r in conn.execute(
+                "SELECT achievement_id FROM earned_achievements WHERE conductor_id = ?", (row["id"],)
+            )
+        ]
+        out.append(
+            {
+                "login": row["login"],
+                "brigade": row["brigade"],
+                "depot": row["depot"],
+                "level": level_of(row["xp"])["name"],
+                "xp": row["xp"],
+                "runs_completed": len(results),
+                "average_score": round(sum(r["score"] for r in results) / len(results)) if results else 0,
+                "competences": competences,
+                "weak_competences": sorted(k for k, v in competences.items() if v < 0),
+                "achievements": earned,
+                "streak_days": streak_days(conn, row["id"]),
+            }
+        )
+    return out
+
+
+def assign(
+    conn: sqlite3.Connection,
+    login: str,
+    content: Content,
+    scenario_id: str | None = None,
+    trip_id: str | None = None,
+) -> dict:
+    """Назначить обучение из LMS: проводник увидит уведомление в приложении."""
+    conductor = get_conductor(conn, login)
+    if conductor is None:
+        raise LookupError(f"нет проводника {login!r}")
+    if trip_id:
+        trip = content.trip(trip_id)
+        title, body = f"Назначен рейс: {trip.title}", f"{trip.route}. {trip.summary}"
+    elif scenario_id:
+        scenario = content.scenario(scenario_id)
+        title, body = f"Назначен сценарий: {scenario.title}", scenario.summary
+    else:
+        raise ValueError("нужен scenario_id или trip_id")
+    notify(conn, conductor["id"], "assignment", title, body)
+    conn.commit()
+    return {"status": "ok", "login": login, "scenario_id": scenario_id, "trip_id": trip_id}

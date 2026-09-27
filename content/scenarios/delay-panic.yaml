@@ -1,0 +1,234 @@
+id: delay-panic
+title: Вынужденная остановка в пути
+summary: >-
+  Поезд резко снижает скорость и останавливается в поле между Бологим и
+  Петербургом. Свет мигает, объявления пока нет. В вагоне поднимается
+  тревога, у одной пассажирки начинается паническая атака.
+segment: Бологое — Санкт-Петербург
+minutes_to_stop: 0
+car_class: комфорт
+difficulty: 3
+start_loyalty: 70
+start_safety: 85
+sources:
+  - "«Примеры ситуаций взаимодействия поездного персонала с пассажирами», ситуации 18, 29, 45"
+start: stop
+
+nodes:
+  stop:
+    speaker: narrator
+    text: >-
+      Состав замедляется и встаёт. На табло — «остановка», по связи тишина.
+      Пассажиры оборачиваются к вам: «Что случилось?»
+    timer: 15
+    critical: true
+    timeout:
+      goto: rumours
+      reason: "Молчание проводника заполняется слухами: «авария», «эвакуация»"
+      effects:
+        loyalty: -10
+        safety: -8
+    options:
+      - id: honest_wait
+        step: acknowledge
+        text: "«Мы остановились, информация уточняется. Как только получу — сразу скажу»"
+        reason: "Достоверная информация и обещание вернуться — единственное, что снимает тревогу (ситуация 18)"
+        effects:
+          loyalty: 8
+          safety: 6
+          competences: {deescalation: 3, service: 1}
+          set: [promised_update]
+        goto: radio
+      - id: guess
+        step: action
+        text: "«Наверное, кто-то на путях, обычное дело, сейчас поедем»"
+        reason: "Придуманная причина: если она не подтвердится, пассажиры перестанут верить всему остальному"
+        better: "Говорить только то, что известно: «информация уточняется» честнее догадки"
+        effects:
+          loyalty: 4
+          safety: -10
+          competences: {safety: -2}
+          set: [lied]
+        goto: radio
+      - id: silence
+        step: action
+        text: "Ничего не говорить, пока не будет официальной информации"
+        reason: "Пустота заполняется слухами быстрее, чем приходит объявление"
+        better: "Даже «пока не знаю, уточняю» — это информация, которая держит салон"
+        effects:
+          loyalty: -8
+          safety: -4
+        goto: rumours
+
+  radio:
+    speaker: radio
+    text: >-
+      Начальник поезда: «Остановка по указанию диспетчера, стоим до
+      двадцати минут. Причину не озвучиваем, скажите про техническую
+      остановку и следите за салоном».
+    timer: 20
+    timeout:
+      goto: panic
+      reason: "Указание не отработано, салон остался без объявления"
+      effects:
+        loyalty: -6
+    options:
+      - id: relay
+        step: solution
+        text: "Пройти по вагону: «Техническая остановка до двадцати минут, поезд под контролем»"
+        reason: "Выполнение указания начальника поезда и конкретная цифра вместо неизвестности"
+        effects:
+          loyalty: 9
+          safety: 8
+          competences: {teamwork: 3, deescalation: 2}
+          set: [informed_salon]
+        goto: panic
+      - id: add_details
+        step: solution
+        text: "Пересказать всё, что услышали по рации, включая слова про диспетчера"
+        reason: "Служебная информация в салон не передаётся: она порождает новые вопросы"
+        better: "Ровно то, что разрешено: техническая остановка и срок"
+        effects:
+          loyalty: 3
+          safety: -6
+          competences: {teamwork: -1}
+        goto: panic
+
+  rumours:
+    speaker: passenger
+    text: >-
+      «В соседнем вагоне говорят, была эвакуация!» — мужчина встаёт
+      и идёт к двери тамбура, за ним поднимаются ещё двое.
+    timer: 12
+    critical: true
+    timeout:
+      goto: panic
+      reason: "Пассажиры пошли к дверям без реакции проводника"
+      effects:
+        loyalty: -8
+        safety: -20
+    options:
+      - id: block_door
+        step: rule
+        text: "Встать у двери: «Прошу вернуться на места. Открывать двери в пути небезопасно»"
+        reason: "Выход в пути — прямая угроза жизни; правило обозначается сразу и чётко (ситуация 45)"
+        effects:
+          loyalty: 2
+          safety: 18
+          competences: {safety: 4, deescalation: 1}
+        goto: panic
+      - id: explain_calmly
+        step: acknowledge
+        text: "«Понимаю, стоять в неизвестности тяжело. Эвакуации нет, я рядом и всё скажу»"
+        reason: "Признание тревоги плюс факт — это возвращает людей на места без конфронтации"
+        effects:
+          loyalty: 9
+          safety: 10
+          competences: {deescalation: 3, service: 2}
+        goto: panic
+      - id: call_only
+        step: action
+        text: "Вызвать начальника поезда и ждать его в служебной зоне"
+        reason: "Бригада извещена, но у дверей в этот момент никого нет"
+        effects:
+          loyalty: -4
+          safety: -10
+          competences: {teamwork: 1, safety: -2}
+        goto: panic
+
+  panic:
+    speaker: passenger
+    text: >-
+      Пассажирка у окна дышит часто и поверхностно, руки дрожат:
+      «Мне нечем дышать, откройте окно, пожалуйста».
+    timer: 18
+    critical: true
+    timeout:
+      goto: neutral_end
+      reason: "Паническая атака осталась без помощи — соседи помогали сами"
+      effects:
+        loyalty: -10
+        safety: -8
+    options:
+      - id: breathing
+        step: solution
+        text: "Сесть рядом, принести воду, дышать вместе «по квадрату»"
+        reason: "Точная рекомендация методички при панической атаке: вода, присутствие, дыхание (ситуация 29)"
+        effects:
+          loyalty: 12
+          safety: 8
+          competences: {service: 3, deescalation: 3}
+          set: [helped_panic]
+        goto: window
+      - id: call_medic
+        step: solution
+        text: "Сообщить начальнику поезда и уточнить, есть ли медики среди пассажиров"
+        reason: "Штатный порядок при ухудшении состояния — через начальника поезда"
+        effects:
+          loyalty: 6
+          safety: 12
+          competences: {safety: 2, teamwork: 3}
+          set: [chief_informed]
+        goto: window
+      - id: dismiss
+        step: action
+        text: "«Сейчас поедем, потерпите» — вернуться к другим пассажирам"
+        reason: "Пассажира в таком состоянии нельзя оставлять без внимания"
+        better: "Присутствие рядом — часть помощи: две минуты у кресла стоят дешевле, чем инцидент"
+        effects:
+          loyalty: -12
+          safety: -10
+          competences: {service: -3}
+        goto: neutral_end
+
+  window:
+    speaker: passenger
+    text: "«Всё равно душно. Откройте хоть форточку, здесь же нечем дышать»."
+    timer: 20
+    timeout:
+      goto: good_end
+      reason: "Просьба осталась без ответа, хотя объяснение заняло бы десять секунд"
+      effects:
+        loyalty: -4
+    options:
+      - id: explain_air
+        step: rule
+        text: "«Окна в поезде не открываются, воздух идёт через систему очистки. Сейчас добавим прохлады»"
+        reason: "Объяснение технической невозможности плюс реальная альтернатива (ситуации 35, 15)"
+        effects:
+          loyalty: 8
+          safety: 4
+          competences: {safety: 1, service: 2}
+        goto: good_end
+      - id: just_no
+        step: rule
+        text: "«Окна не открываются»"
+        reason: "Формально верно, но без объяснения и альтернативы звучит как отказ"
+        better: "Добавить, откуда идёт воздух, и предложить климат или воду — это и есть сервис"
+        effects:
+          loyalty: -3
+        goto: good_end
+      - id: to_vestibule
+        step: solution
+        text: "Предложить выйти в тамбур, где просторнее, и побыть там вместе"
+        reason: "Смена обстановки и присутствие проводника работают лучше объяснений"
+        requires: [helped_panic]
+        effects:
+          loyalty: 10
+          safety: 4
+          competences: {service: 3, deescalation: 2}
+        goto: good_end
+
+  good_end:
+    ending: good
+    text: >-
+      Через четырнадцать минут поезд трогается. Вагон едет спокойно,
+      пассажирка у окна благодарит, а объявление начальника поезда
+      подтверждает то, что вы уже сказали сами.
+
+  neutral_end:
+    ending: neutral
+    text: >-
+      Поезд трогается, но вагон доезжает до Петербурга в напряжении:
+      двое пассажиров оставили обращения о том, что «персонал не объяснял,
+      что происходит».

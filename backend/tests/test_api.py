@@ -34,7 +34,8 @@ def client(tmp_path, monkeypatch):
 
 
 def test_health_and_reference(client):
-    assert client.get("/api/v1/health").json()["scenarios"] == 3
+    health = client.get("/api/v1/health").json()
+    assert health["scenarios"] == 6 and health["trips"] == 2
     reference = client.get("/api/v1/reference").json()
     assert "composure" in reference["competences"]
     assert "acknowledge" in reference["steps"]

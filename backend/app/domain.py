@@ -54,6 +54,18 @@ class Effects:
 
 
 @dataclass(frozen=True)
+class Branch:
+    """Условный переход: если флаг взведён, ход идёт в другой узел.
+
+    Так работает память пассажиров между инцидентами рейса: пассажир,
+    которому отказали на первом перегоне, встречает проводника иначе.
+    """
+
+    flag: str
+    goto: str
+
+
+@dataclass(frozen=True)
 class Option:
     """Вариант действия проводника в узле сценария."""
 
@@ -66,9 +78,17 @@ class Option:
     requires: list[str] = field(default_factory=list)      # нужны эти флаги
     forbidden: list[str] = field(default_factory=list)     # недоступен при этих флагах
     better: str | None = None        # «как можно было лучше» для обучающей обратной связи
+    goto_if: list[Branch] = field(default_factory=list)    # условные переходы, проверяются по порядку
 
     def available(self, flags: set[str]) -> bool:
         return all(f in flags for f in self.requires) and not any(f in flags for f in self.forbidden)
+
+    def target(self, flags: set[str]) -> str:
+        """Куда ведёт ход с учётом памяти о прошлых инцидентах."""
+        for branch in self.goto_if:
+            if branch.flag in flags:
+                return branch.goto
+        return self.goto
 
 
 @dataclass(frozen=True)
@@ -120,3 +140,22 @@ class Scenario:
             return self.nodes[node_id]
         except KeyError:
             raise ValueError(f"сценарий {self.id}: нет узла {node_id!r}") from None
+
+
+@dataclass(frozen=True)
+class Trip:
+    """Рейс — несколько инцидентов подряд с общей памятью и общими шкалами.
+
+    Это главное отличие от набора отдельных ситуаций: пассажир, которому
+    отказали в первом вагоне, встречается снова на третьем перегоне, а шкалы
+    не обнуляются между инцидентами — как в настоящей смене.
+    """
+
+    id: str
+    title: str
+    summary: str
+    route: str
+    segments: list[str]              # id сценариев по порядку следования
+    memory_labels: dict[str, str] = field(default_factory=dict)  # флаг → что это значит для игрока
+    start_loyalty: int = 70
+    start_safety: int = 85

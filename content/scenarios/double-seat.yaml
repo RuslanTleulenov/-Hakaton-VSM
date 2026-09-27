@@ -156,6 +156,7 @@ nodes:
         effects:
           loyalty: 10
           competences: {service: 2}
+          set: [goodwill_car]        # салон запомнил, что проводник решает по-человечески
         goto: good_end
       - id: leave
         step: action
@@ -198,6 +199,7 @@ nodes:
           loyalty: -8
           safety: -4
           competences: {deescalation: -2}
+          set: [car_tense]           # вагон запомнил публичный спор
         goto: escalated
 
   fix_offer:
@@ -258,6 +260,7 @@ nodes:
           loyalty: -8
           safety: -4
           competences: {service: -2, teamwork: -2}
+          set: [car_tense]
         goto: bad_end
 
   good_end:

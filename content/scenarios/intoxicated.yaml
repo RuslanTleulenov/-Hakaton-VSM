@@ -193,7 +193,7 @@ nodes:
           safety: 15
           loyalty: -2
           competences: {safety: 3, teamwork: 2}
-          set: [ptb_called]
+          set: [ptb_called, ptb_known]   # ПТБ уже в вашем вагоне — пригодится на следующем перегоне
         goto: family
       - id: move_family
         step: solution

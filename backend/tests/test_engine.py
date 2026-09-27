@@ -16,7 +16,14 @@ SCENARIOS = load_scenarios()
 
 
 def test_all_scenarios_load_and_validate():
-    assert set(SCENARIOS) == {"medical", "double-seat", "intoxicated"}
+    assert set(SCENARIOS) == {
+        "medical",
+        "double-seat",
+        "intoxicated",
+        "unattended-bag",
+        "lost-child",
+        "delay-panic",
+    }
     for scenario in SCENARIOS.values():
         assert scenario.sources, f"{scenario.id}: нет ссылки на регламент"
         for node in scenario.nodes.values():

@@ -195,6 +195,9 @@ nodes:
           loyalty: 8
           safety: 3
           competences: {service: 2, deescalation: 1}
+        goto_if:
+          - flag: car_tense          # вагон помнит спор на прошлом перегоне
+            goto: filmed
         goto: finish_ok
       - id: breathing
         step: solution
@@ -204,6 +207,16 @@ nodes:
           loyalty: 7
           safety: 4
           competences: {service: 2, deescalation: 2}
+        goto: finish_ok
+      - id: neighbour_help
+        step: solution
+        text: "Попросить пассажиров, с которыми вы уже нашли общий язык, помочь: воду и место у прохода"
+        reason: "Салон, к которому проводник отнёсся по-человечески раньше, помогает сам — это и есть лояльность как ресурс"
+        requires: [goodwill_car]
+        effects:
+          loyalty: 10
+          safety: 6
+          competences: {service: 3, deescalation: 2}
         goto: finish_ok
       - id: leave
         step: action
@@ -215,6 +228,40 @@ nodes:
           safety: -8
           competences: {service: -2}
         goto: finish_ok
+
+  filmed:
+    speaker: narrator
+    text: >-
+      Сосед через проход поднимает телефон: «Опять вы разбираетесь. Снимаю,
+      пусть люди видят, как тут обслуживают». Пассажирке становится
+      ещё более неловко.
+    timer: 15
+    critical: true
+    timeout:
+      goto: finish_soft
+      reason: "Съёмка продолжается, пассажирка закрывается от камеры и от помощи"
+      effects:
+        loyalty: -8
+        safety: -6
+    options:
+      - id: privacy_first
+        step: rule
+        text: "«Прошу не снимать пассажирку без её согласия. Ей сейчас нужна помощь, а не внимание»"
+        reason: "Съёмка других пассажиров без согласия ограничивается, и причина названа прямо (ситуация 25)"
+        effects:
+          loyalty: 6
+          safety: 8
+          competences: {safety: 2, deescalation: 2}
+        goto: finish_ok
+      - id: ignore_camera
+        step: action
+        text: "Не обращать внимания на камеру и продолжать помогать"
+        reason: "Помощь важнее камеры, но пассажирка остаётся под объективом"
+        better: "Одна фраза про согласие защищает пассажирку и не мешает помогать"
+        effects:
+          loyalty: -4
+          safety: 2
+        goto: finish_soft
 
   finish_ok:
     ending: good

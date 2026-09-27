@@ -1,0 +1,260 @@
+id: unattended-bag
+title: Бесхозная вещь в салоне
+summary: >-
+  Перегон Тверь — Бологое. Пассажирка показывает на рюкзак под креслом:
+  «Он тут с самой Москвы, хозяина не видно». Вокруг полный вагон, до
+  остановки восемнадцать минут.
+segment: Тверь — Бологое
+minutes_to_stop: 18
+car_class: комфорт
+difficulty: 3
+start_loyalty: 70
+start_safety: 85
+sources:
+  - "«Примеры ситуаций взаимодействия поездного персонала с пассажирами», ситуации 14, 17, 41"
+start: alert
+
+nodes:
+  alert:
+    speaker: passenger
+    text: >-
+      «Смотрите, рюкзак. Он тут с Москвы стоит, никто к нему не подходил» —
+      пассажирка говорит негромко, но соседние ряды уже слушают.
+    timer: 15
+    critical: true
+    timeout:
+      goto: crowd
+      reason: "Пауза у бесхозной вещи: разговоры в салоне пошли сами, кто-то достал телефон"
+      effects:
+        loyalty: -5
+        safety: -12
+    options:
+      - id: thanks_and_check
+        step: acknowledge
+        text: "«Благодарю за бдительность. Сейчас уточню, кому принадлежит вещь»"
+        reason: "Бдительность поощряется, тревога не раздувается — формулировка из методички (ситуация 41)"
+        effects:
+          loyalty: 6
+          safety: 6
+          competences: {safety: 2, deescalation: 1}
+          set: [calm_tone]
+        goto: touch
+      - id: open_it
+        step: action
+        text: "Открыть рюкзак и посмотреть, есть ли внутри документы владельца"
+        reason: "Бесхозную вещь трогать нельзя ни при каких условиях — это прямое требование безопасности"
+        better: "Не прикасаться: сообщить начальнику поезда и ПТБ по поездной связи, вещь не двигать"
+        effects:
+          loyalty: 2
+          safety: -30
+          competences: {safety: -4}
+          set: [touched]
+        goto: touch
+      - id: announce_loud
+        step: action
+        text: "Громко спросить весь вагон: «Чей рюкзак? Здесь бесхозная вещь!»"
+        reason: "Слова «бесхозная вещь» в полный голос поднимают тревогу быстрее, чем находят владельца"
+        better: "Спокойное обращение без тревожных формулировок: «уточняем принадлежность вещи»"
+        effects:
+          loyalty: -6
+          safety: -6
+          competences: {deescalation: -2}
+          set: [panic_seed]
+        goto: crowd
+
+  touch:
+    speaker: narrator
+    text: >-
+      Владелец не отзывается. Рюкзак стоит под креслом 22-го ряда,
+      рядом сидит семья с ребёнком.
+    timer: 20
+    critical: true
+    timeout:
+      goto: crowd
+      reason: "О находке никто из бригады не знает — время идёт"
+      effects:
+        safety: -15
+    options:
+      - id: radio_ptb
+        step: solution
+        text: "По поездной связи вызвать начальника поезда и ПТБ, вещь не трогать"
+        reason: "Штатный порядок при бесхозной вещи: не трогать, сообщить начальнику поезда и ПТБ (ситуация 41)"
+        effects:
+          loyalty: 4
+          safety: 18
+          competences: {safety: 4, teamwork: 3}
+          set: [ptb_called]
+        goto_if:
+          - flag: ptb_known          # ПТБ уже знакомы с вагоном по прошлому инциденту рейса
+            goto: fast_ptb
+        goto: waiting
+      - id: move_bag
+        step: action
+        text: "Перенести рюкзак в тамбур, чтобы не мешал проходу"
+        reason: "Перемещение бесхозной вещи запрещено — проход освобождают иначе"
+        better: "Проход освобождают, отодвигая людей, а не предмет: вещь остаётся на месте до ПТБ"
+        effects:
+          safety: -25
+          competences: {safety: -4}
+        goto: waiting
+      - id: ask_neighbours
+        step: solution
+        text: "Тихо опросить соседние ряды: не видел ли кто владельца"
+        reason: "Опрос соседей — рекомендованный способ найти владельца ручной клади (ситуация 14)"
+        effects:
+          loyalty: 4
+          safety: 4
+          competences: {service: 1, safety: 1}
+          set: [asked_neighbours]
+        goto: owner
+
+  fast_ptb:
+    speaker: radio
+    text: >-
+      ПТБ отвечает сразу: «Мы у вас в составе, идём. Держите людей на местах,
+      к вещи не подходите».
+    timer: 15
+    timeout:
+      goto: resolved
+      reason: "Указание ПТБ не подтверждено — бригада действовала вслепую"
+      effects:
+        safety: -5
+    options:
+      - id: hold_line
+        step: solution
+        text: "Попросить пассажиров ближних рядов оставаться на местах и спокойно объяснить почему"
+        reason: "Люди отведены от предмета без паники — то, что и требуется до прихода ПТБ"
+        effects:
+          loyalty: 5
+          safety: 12
+          competences: {safety: 3, deescalation: 2}
+        goto: resolved
+      - id: nothing_special
+        step: action
+        text: "Ничего не объяснять, чтобы не пугать людей"
+        reason: "Без объяснения пассажиры продолжают ходить мимо предмета"
+        effects:
+          safety: -8
+        goto: resolved
+
+  owner:
+    speaker: passenger
+    text: >-
+      Из вагона-бистро возвращается мужчина: «Это мой рюкзак, я на десять
+      минут отошёл. А что случилось?»
+    timer: 20
+    timeout:
+      goto: resolved
+      reason: "Владелец не услышал объяснения и ушёл с ощущением, что его подозревали"
+      effects:
+        loyalty: -5
+    options:
+      - id: explain_rules
+        step: rule
+        text: "«Всё в порядке. Обращаю ваше внимание: ручную кладь не оставляют без присмотра»"
+        reason: "Правило названо спокойно, без обвинения — ровно то, что нужно владельцу"
+        effects:
+          loyalty: 6
+          safety: 6
+          competences: {safety: 2, service: 1}
+        goto: resolved
+      - id: scold
+        step: rule
+        text: "«Вы понимаете, что из-за вас чуть весь вагон не подняли?»"
+        reason: "Обвинение при свидетелях превращает решённую ситуацию в конфликт"
+        better: "То же правило, но без упрёка: пассажир должен понять норму, а не почувствовать вину"
+        effects:
+          loyalty: -10
+          competences: {deescalation: -2, service: -2}
+        goto: resolved
+      - id: check_and_close
+        step: solution
+        text: "Убедиться, что вещь его (содержимое, билет), и сообщить бригаде отбой"
+        reason: "Инцидент закрывается официально: бригада знает, что тревоги нет"
+        requires: [ptb_called]
+        effects:
+          loyalty: 5
+          safety: 10
+          competences: {safety: 2, teamwork: 2}
+        goto: resolved
+
+  crowd:
+    speaker: narrator
+    text: >-
+      В вагоне нарастает шум: кто-то встал, кто-то снимает рюкзак на телефон,
+      женщина с ребёнком идёт к выходу из вагона.
+    timer: 15
+    critical: true
+    timeout:
+      goto: bad_end
+      reason: "Паника в салоне развилась без вмешательства проводника"
+      effects:
+        loyalty: -12
+        safety: -18
+    options:
+      - id: calm_and_call
+        step: solution
+        text: "Спокойно обратиться к салону и немедленно вызвать ПТБ по связи"
+        reason: "Чёткие короткие формулировки останавливают панику, бригада получает информацию (ситуация 45)"
+        effects:
+          loyalty: 6
+          safety: 14
+          competences: {safety: 3, deescalation: 3, teamwork: 2}
+          set: [ptb_called]
+        goto: waiting
+      - id: deny
+        step: action
+        text: "«Ничего не происходит, сядьте на места»"
+        reason: "Отрицание при очевидной тревоге усиливает недоверие к персоналу"
+        better: "Признать ситуацию и коротко сказать, что делается: люди успокаиваются от определённости"
+        effects:
+          loyalty: -8
+          safety: -8
+          competences: {deescalation: -3}
+        goto: bad_end
+
+  waiting:
+    speaker: narrator
+    text: >-
+      ПТБ в пути, до Бологого десять минут. Пассажиры ближних рядов
+      поглядывают на рюкзак.
+    timer: 20
+    timeout:
+      goto: resolved
+      reason: "Ожидание прошло в молчании: пассажиры додумывали сами"
+      effects:
+        loyalty: -4
+    options:
+      - id: keep_informed
+        step: assure
+        text: "«Ситуация под контролем, сотрудники уже идут. Благодарю за спокойствие»"
+        reason: "Заверение закрывает контакт и удерживает салон до прихода ПТБ"
+        effects:
+          loyalty: 9
+          safety: 4
+          competences: {service: 2, deescalation: 1}
+        goto: owner
+      - id: find_owner
+        step: solution
+        text: "Пройти по соседним вагонам и поискать владельца"
+        reason: "Поиск владельца полезен, но пост у вещи оставлять нельзя"
+        better: "Поиск организуют через начальника поезда и объявление, оставаясь в вагоне"
+        effects:
+          loyalty: 2
+          safety: -6
+          competences: {safety: -1}
+        goto: owner
+
+  resolved:
+    ending: good
+    text: >-
+      Владелец найден, ПТБ фиксирует обращение, пассажиры возвращаются
+      к своим делам. Пассажирка, заметившая рюкзак, получает благодарность —
+      в следующий раз она снова позовёт проводника, а не промолчит.
+
+  bad_end:
+    ending: bad
+    text: >-
+      В Бологом состав встречает наряд, часть пассажиров выходит в тамбур
+      раньше остановки. Видео «паника в вагоне ВСМ» набирает просмотры,
+      хотя в рюкзаке были кроссовки.

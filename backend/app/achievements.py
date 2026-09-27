@@ -18,10 +18,12 @@ CONDITION_KEYS = {
     "ending",
     "min_competence",
     "runs_completed",
+    "streak_days",
+    "trip_segments",
 }
 
 
-def check(condition: dict[str, Any], result: dict[str, Any], runs_completed: int) -> bool:
+def check(condition: dict[str, Any], result: dict[str, Any], runs_completed: int, streak: int = 0) -> bool:
     unknown = set(condition) - CONDITION_KEYS
     if unknown:
         raise ValueError(f"неизвестное условие достижения: {sorted(unknown)}")
@@ -38,6 +40,10 @@ def check(condition: dict[str, Any], result: dict[str, Any], runs_completed: int
         return False
     if "runs_completed" in condition and runs_completed < condition["runs_completed"]:
         return False
+    if "streak_days" in condition and streak < condition["streak_days"]:
+        return False
+    if "trip_segments" in condition and len(result.get("segments", [])) < condition["trip_segments"]:
+        return False
     for key, value in condition.get("min_competence", {}).items():
         if result["competences"].get(key, 0) < value:
             return False
@@ -49,10 +55,11 @@ def newly_earned(
     already: set[str],
     result: dict[str, Any],
     runs_completed: int,
+    streak: int = 0,
 ) -> list[dict[str, Any]]:
     """Ачивки, заработанные именно этой партией."""
     return [
         a
         for a in catalog
-        if a["id"] not in already and check(a.get("condition", {}), result, runs_completed)
+        if a["id"] not in already and check(a.get("condition", {}), result, runs_completed, streak)
     ]

@@ -30,7 +30,9 @@ CREATE TABLE IF NOT EXISTS conductors (
 CREATE TABLE IF NOT EXISTS runs (
     id TEXT PRIMARY KEY,
     conductor_id INTEGER NOT NULL REFERENCES conductors(id),
-    scenario_id TEXT NOT NULL,
+    scenario_id TEXT NOT NULL,        -- текущий инцидент (для рейса — последний начатый)
+    trip_id TEXT,                     -- заполнен, если партия это рейс из нескольких инцидентов
+    challenge_week TEXT,              -- ISO-неделя, если партия сыграна в «рейсе недели»
     state TEXT NOT NULL,              -- сериализованный RunState
     node_shown_at TEXT,               -- когда сервер показал текущий узел
     finished INTEGER NOT NULL DEFAULT 0,
@@ -64,9 +66,34 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS api_clients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,               -- «HR-портал», «LMS»
+    token TEXT NOT NULL UNIQUE,       -- выдаётся администратором стенда
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_runs_conductor ON runs(conductor_id);
 CREATE INDEX IF NOT EXISTS idx_events_run ON run_events(run_id);
 """
+
+# Колонки, добавленные после первого релиза схемы: база разработчика и стенда
+# обновляется на месте, без пересоздания.
+MIGRATIONS = {
+    "runs": {
+        "trip_id": "ALTER TABLE runs ADD COLUMN trip_id TEXT",
+        "challenge_week": "ALTER TABLE runs ADD COLUMN challenge_week TEXT",
+    },
+}
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    for table, columns in MIGRATIONS.items():
+        existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+        for column, statement in columns.items():
+            if column not in existing:
+                conn.execute(statement)
+    conn.commit()
 
 
 def connect(path: Path | None = None) -> sqlite3.Connection:
@@ -76,6 +103,7 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
 
 

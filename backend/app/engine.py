@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .domain import COMPETENCES, Effects, Node, Option, Scenario
+from .domain import COMPETENCES, Effects, Node, Option, Scenario, Trip
 
 # Порядок шагов ролевой модели из методички «Примеры ситуаций взаимодействия
 # поездного персонала с пассажирами»: признать → правило → решение → заверить.
@@ -48,6 +48,21 @@ def clamp(value: int, low: int = 0, high: int = 100) -> int:
 
 
 @dataclass
+class Alternative:
+    """Ветка, которую игрок не выбрал, — «что было бы, если».
+
+    Показывается в разборе только там, где альтернатива была заметно лучше:
+    обучающая обратная связь, а не перечисление всех кнопок.
+    """
+
+    option_id: str
+    text: str
+    reason: str
+    loyalty: int
+    safety: int
+
+
+@dataclass
 class Event:
     """Один ход партии — основа разбора и аналитики."""
 
@@ -64,11 +79,17 @@ class Event:
     competence_deltas: dict[str, int]
     reasons: list[str]
     better: str | None
+    scenario_id: str = ""
+    alternative: Alternative | None = None
 
 
 @dataclass
 class RunState:
-    """Состояние партии. Сериализуется в БД, поэтому без ссылок на сценарий."""
+    """Состояние партии. Сериализуется в БД, поэтому без ссылок на сценарий.
+
+    Партия — это либо один инцидент, либо рейс из нескольких: тогда
+    `queue` хранит оставшиеся сценарии, а флаги и шкалы переходят дальше.
+    """
 
     scenario_id: str
     node_id: str
@@ -80,6 +101,9 @@ class RunState:
     events: list[Event] = field(default_factory=list)
     finished: bool = False
     ending: str | None = None
+    trip_id: str | None = None
+    queue: list[str] = field(default_factory=list)      # ещё не сыгранные инциденты рейса
+    segments: list[dict[str, Any]] = field(default_factory=list)   # исход каждого инцидента
 
 
 def start(scenario: Scenario) -> RunState:
@@ -89,6 +113,35 @@ def start(scenario: Scenario) -> RunState:
         loyalty=scenario.start_loyalty,
         safety=scenario.start_safety,
     )
+
+
+def start_trip(trip: Trip, first: Scenario) -> RunState:
+    """Начать рейс: шкалы общие на всю смену, очередь инцидентов — из маршрута."""
+    return RunState(
+        scenario_id=first.id,
+        node_id=first.start,
+        loyalty=trip.start_loyalty,
+        safety=trip.start_safety,
+        trip_id=trip.id,
+        queue=list(trip.segments[1:]),
+    )
+
+
+def continue_trip(state: RunState, nxt: Scenario) -> None:
+    """Перейти к следующему инциденту рейса, сохранив шкалы и память.
+
+    Память — это те же флаги: пассажир, которому отказали в первом вагоне,
+    узнаётся в третьем, потому что флаг о нём никуда не делся.
+    """
+    if not state.queue or state.queue[0] != nxt.id:
+        raise ValueError(f"инцидент {nxt.id!r} не следующий в рейсе")
+    state.segments.append({"scenario_id": state.scenario_id, "ending": state.ending})
+    state.queue.pop(0)
+    state.scenario_id = nxt.id
+    state.node_id = nxt.start
+    state.finished = False
+    state.ending = None
+    state.last_step = None
 
 
 def available_options(scenario: Scenario, state: RunState) -> list[Option]:
@@ -122,6 +175,34 @@ def _sequence_rule(step: str | None, last_step: str | None) -> tuple[Effects, st
     return None
 
 
+def _weight(option: Option) -> int:
+    """Цена варианта глазами тренажёра: безопасность весит вдвое."""
+    return option.effects.safety * 2 + option.effects.loyalty
+
+
+# Насколько альтернатива должна быть лучше, чтобы о ней стоило говорить в разборе.
+ALTERNATIVE_GAP = 6
+
+# Псевдо-вариант «игрок не ответил»: с ним сравнивается любой пропущенный таймер.
+_NO_CHOICE = Option(id="", text="", goto="", reason="")
+
+
+def _alternative(options: list[Option], chosen: Option) -> Alternative | None:
+    others = [o for o in options if o.id != chosen.id]
+    if not others:
+        return None
+    best = max(others, key=_weight)
+    if _weight(best) - _weight(chosen) < ALTERNATIVE_GAP:
+        return None
+    return Alternative(
+        option_id=best.id,
+        text=best.text,
+        reason=best.reason,
+        loyalty=best.effects.loyalty,
+        safety=best.effects.safety,
+    )
+
+
 def _merge(into: dict[str, int], extra: dict[str, int]) -> None:
     for key, value in extra.items():
         into[key] = into.get(key, 0) + value
@@ -141,7 +222,8 @@ def choose(scenario: Scenario, state: RunState, option_id: str | None, seconds: 
     if option_id is None or expired:
         return _timeout(scenario, state, node, seconds)
 
-    option = next((o for o in available_options(scenario, state) if o.id == option_id), None)
+    available_at_start = available_options(scenario, state)
+    option = next((o for o in available_at_start if o.id == option_id), None)
     if option is None:
         raise ValueError(f"вариант {option_id!r} недоступен в узле {node.id}")
 
@@ -184,9 +266,11 @@ def choose(scenario: Scenario, state: RunState, option_id: str | None, seconds: 
         competence_deltas=competence_deltas,
         reasons=reasons,
         better=option.better,
+        scenario_id=scenario.id,
+        alternative=_alternative(available_at_start, option),
     )
     state.events.append(event)
-    _advance(scenario, state, option.goto)
+    _advance(scenario, state, option.target(state.flags))
     return event
 
 
@@ -211,6 +295,8 @@ def _timeout(scenario: Scenario, state: RunState, node: Node, seconds: float) ->
         competence_deltas=competence_deltas,
         reasons=reasons,
         better="Бездействие — тоже решение: лучше быстрый неидеальный шаг, чем истёкший таймер",
+        scenario_id=scenario.id,
+        alternative=_alternative(available_options(scenario, state), _NO_CHOICE),
     )
     state.events.append(event)
     _advance(scenario, state, node.timeout.goto)
@@ -239,7 +325,9 @@ def score(scenario: Scenario, state: RunState) -> dict[str, Any]:
     """
     base = round(state.safety * 0.6 + state.loyalty * 0.4)
     timeouts = sum(1 for event in state.events if event.timed_out)
-    ending_bonus = {"good": 10, "neutral": 0, "bad": -10}.get(state.ending or "neutral", 0)
+    endings = [segment["ending"] for segment in state.segments] + [state.ending or "neutral"]
+    bonuses = [{"good": 10, "neutral": 0, "bad": -10}.get(ending or "neutral", 0) for ending in endings]
+    ending_bonus = round(sum(bonuses) / len(bonuses))
     total = clamp(base + ending_bonus - 3 * timeouts, 0, 110)
     grade = next(name for threshold, name in GRADES if total >= threshold)
     return {
@@ -250,6 +338,8 @@ def score(scenario: Scenario, state: RunState) -> dict[str, Any]:
         "xp": total * scenario.difficulty,
         "grade": grade,
         "timeouts": timeouts,
+        "trip_id": state.trip_id,
+        "segments": [*state.segments, {"scenario_id": state.scenario_id, "ending": state.ending}],
         "competences": dict(state.competences),
         "weak": sorted(k for k, v in state.competences.items() if v < 0),
         "strong": sorted(k for k, v in state.competences.items() if v >= 3),
