@@ -13,9 +13,25 @@ start_safety: 90
 sources:
   - "«Примеры ситуаций взаимодействия поездного персонала с пассажирами», ситуации 13, 24, 33, 44"
 start: clash
+scene: business-day
+characters:
+  sergey:
+    name: Сергей
+    role: пассажир с чемоданом
+    sprite: sergey
+  igor:
+    name: Игорь
+    role: пассажир у окна
+    sprite: igor
+  olga:
+    name: Ольга Петровна
+    role: начальник поезда
+    sprite: chief
 
 nodes:
   clash:
+    character: sergey
+    mood: upset
     speaker: passenger
     text: >-
       «Это моё место, у меня билет! Пусть он встаёт!» — второй пассажир стоит
@@ -60,6 +76,8 @@ nodes:
         goto: chief_arrives
 
   check:
+    character: sergey
+    mood: tense
     speaker: narrator
     text: >-
       Билеты действительны оба: одно и то же место, один и тот же рейс.
@@ -106,6 +124,8 @@ nodes:
         goto: assure
 
   chief_arrives:
+    character: olga
+    mood: calm
     speaker: chief
     text: >-
       Начальник поезда сверяет данные: «Сбой на стороне оформления. Есть место
@@ -138,6 +158,8 @@ nodes:
         goto: assure
 
   assure:
+    character: igor
+    mood: tense
     speaker: narrator
     text: >-
       Пассажиры расходятся по местам. Салон продолжает наблюдать,
@@ -168,6 +190,8 @@ nodes:
         goto: quiet_end
 
   complaint:
+    character: igor
+    mood: upset
     speaker: passenger
     text: >-
       «Я заплатил за бизнес-класс. Давайте книгу жалоб, и я сниму это на видео» —
@@ -203,6 +227,8 @@ nodes:
         goto: escalated
 
   fix_offer:
+    character: igor
+    mood: tense
     speaker: narrator
     text: "Есть ещё время исправить ситуацию до Твери."
     timer: 25
@@ -231,6 +257,8 @@ nodes:
         goto: quiet_end
 
   escalated:
+    character: olga
+    mood: tense
     speaker: chief
     text: >-
       Начальник поезда приходит на шум сам. Конфликт слышал весь вагон,

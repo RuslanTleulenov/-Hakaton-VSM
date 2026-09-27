@@ -14,9 +14,25 @@ sources:
   - "«Примеры ситуаций взаимодействия поездного персонала с пассажирами», ситуации 19, 28, 29"
   - "СТО РЖД 03.013–2026, требования к оснащённости вагонов (аптечка, связь)"
 start: notice
+scene: comfort-window
+characters:
+  elena:
+    name: Елена
+    role: пассажирка места 12
+    sprite: elena
+  viktor:
+    name: Виктор
+    role: пассажир через проход
+    sprite: viktor
+  olga:
+    name: Ольга Петровна
+    role: начальник поезда
+    sprite: chief
 
 nodes:
   notice:
+    character: elena
+    mood: tense
     speaker: narrator
     text: >-
       Пассажирка 12-го места побледнела, дышит часто, держится за грудь.
@@ -64,6 +80,8 @@ nodes:
         goto: chief
 
   delayed_start:
+    character: elena
+    mood: upset
     speaker: passenger
     text: >-
       Соседка пассажирки машет вам рукой: «Девушке плохо, вы не видите?»
@@ -89,6 +107,8 @@ nodes:
         goto: chief
 
   chief:
+    character: elena
+    mood: upset
     speaker: narrator
     text: >-
       Состояние не улучшается. По рации доступен начальник поезда, до Твери
@@ -134,6 +154,8 @@ nodes:
         goto: no_medics
 
   care:
+    character: elena
+    mood: tense
     speaker: passenger
     text: >-
       «Мне неловко, столько людей смотрит… Может, не надо никого вызывать,
@@ -176,6 +198,8 @@ nodes:
         goto: finish_soft
 
   privacy:
+    character: elena
+    mood: tense
     speaker: narrator
     text: >-
       Соседи по креслам продолжают смотреть. Пассажирка прикрывает лицо рукой.
@@ -230,6 +254,8 @@ nodes:
         goto: finish_ok
 
   filmed:
+    character: viktor
+    mood: upset
     speaker: narrator
     text: >-
       Сосед через проход поднимает телефон: «Опять вы разбираетесь. Снимаю,
@@ -278,6 +304,8 @@ nodes:
       Формально инцидент не закрыт.
 
   no_medics:
+    character: olga
+    mood: upset
     speaker: chief
     text: >-
       Начальник поезда появляется в вагоне сам: «Почему я узнаю об этом от

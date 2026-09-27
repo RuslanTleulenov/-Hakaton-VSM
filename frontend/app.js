@@ -9,6 +9,8 @@ const state = {
   run: null,
   timer: null,
   reference: { competences: {}, steps: {} },
+  novel: localStorage.getItem("vsm_novel") !== "off",   // лайт-новелла включена по умолчанию
+  typing: null,
 };
 
 const app = document.getElementById("app");
@@ -148,6 +150,10 @@ function stopTimer() {
     clearInterval(state.timer);
     state.timer = null;
   }
+  if (state.typing) {
+    clearInterval(state.typing);
+    state.typing = null;
+  }
 }
 
 function tripBar(trip) {
@@ -179,25 +185,30 @@ function renderRun(lastEvent) {
   if (run.finished) return renderDebrief();
 
   const node = run.node;
+  const novel = state.novel && Boolean(node.scene);
   app.innerHTML =
     scales(run.loyalty, run.safety, lastEvent ? { loyalty: lastEvent.loyalty_delta, safety: lastEvent.safety_delta } : {}) +
     tripBar(run.trip) +
-    `<div class="card">
+    `<div class="card ${novel ? "novel-card" : ""}">
       <div class="row spread">
         <span class="meta">${run.scenario.title} · ${run.scenario.segment}${
           run.scenario.minutes_to_stop ? ` · до остановки ${run.scenario.minutes_to_stop} мин` : ""
         }</span>
-        ${node.critical ? '<span class="critical-tag">критическое решение</span>' : ""}
+        <span class="row">
+          ${node.critical ? '<span class="critical-tag">критическое решение</span>' : ""}
+          ${node.scene ? `<button class="mode" id="mode">${state.novel ? "Текстом" : "Новеллой"}</button>` : ""}
+        </span>
       </div>
       ${node.timer ? `
         <div class="timer-wrap">
           <div class="timer-text"><span>Время на решение</span><b id="tleft">${node.timer} с</b></div>
           <div class="timer-bar" id="tbar"><i style="width:100%"></i></div>
         </div>` : ""}
-      <div class="speech">
-        <div class="speaker">${speakerName(node.speaker)}</div>
-        <div>${node.text}</div>
-      </div>
+      ${novel ? stageBlock(node) : `
+        <div class="speech">
+          <div class="speaker">${speakerName(node.speaker)}</div>
+          <div>${node.text}</div>
+        </div>`}
       <div class="options">
         ${node.options
           .map(
@@ -213,8 +224,58 @@ function renderRun(lastEvent) {
   app.querySelectorAll("[data-option]").forEach((button) =>
     button.addEventListener("click", () => choose(button.dataset.option))
   );
-
+  const mode = document.getElementById("mode");
+  if (mode) {
+    mode.addEventListener("click", () => {
+      state.novel = !state.novel;
+      localStorage.setItem("vsm_novel", state.novel ? "on" : "off");
+      renderRun(lastEvent);
+    });
+  }
+  if (novel) startScene(node);
   if (node.timer) runTimer(node.timer);
+}
+
+/* Сцена новеллы: фон, персонаж, реплика. Картинок может не быть —
+   тогда остаётся градиент по имени сцены и табличка с именем. */
+function stageBlock(node) {
+  const who = node.character;
+  return `
+    <div class="stage" data-scene="${node.scene}">
+      ${node.scene_image ? `<img class="bg" src="${node.scene_image}" alt="" onerror="this.remove()">` : ""}
+      ${
+        who
+          ? `<div class="actor mood-${who.mood}">
+               <img src="${who.sprite}" alt="" onerror="this.remove()">
+             </div>`
+          : ""
+      }
+      <div class="dialogue">
+        <div class="who">${who ? `${who.name}<span class="role"> · ${who.role}</span>` : speakerName(node.speaker)}</div>
+        <div class="line" id="line"></div>
+      </div>
+    </div>`;
+}
+
+function startScene(node) {
+  const line = document.getElementById("line");
+  if (!line) return;
+  const text = node.text;
+  let shown = 0;
+  const reveal = () => {
+    shown = text.length;
+    line.textContent = text;
+    clearInterval(state.typing);
+    state.typing = null;
+  };
+  line.textContent = "";
+  clearInterval(state.typing);
+  state.typing = setInterval(() => {
+    shown += 2;
+    line.textContent = text.slice(0, shown);
+    if (shown >= text.length) reveal();
+  }, 16);
+  line.parentElement.addEventListener("click", reveal);   // клик — показать реплику целиком
 }
 
 function speakerName(speaker) {

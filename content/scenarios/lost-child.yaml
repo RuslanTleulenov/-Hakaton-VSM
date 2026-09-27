@@ -13,9 +13,21 @@ start_safety: 85
 sources:
   - "«Примеры ситуаций взаимодействия поездного персонала с пассажирами», ситуации 30, 37, 47"
 start: found
+scene: service-zone
+characters:
+  misha:
+    name: Миша
+    role: пассажир шести лет
+    sprite: misha
+  anna:
+    name: Анна
+    role: мама Миши
+    sprite: anna
 
 nodes:
   found:
+    character: misha
+    mood: upset
     speaker: narrator
     text: >-
       Мальчик лет шести стоит у служебной зоны и плачет. В ту же секунду
@@ -61,6 +73,8 @@ nodes:
         goto: alone
 
   radio_back:
+    character: misha
+    mood: tense
     speaker: radio
     text: >-
       «Седьмой вагон, у нас обращение по вашему вагону — пассажир ищет
@@ -95,6 +109,8 @@ nodes:
         goto: announcement
 
   announcement:
+    character: misha
+    mood: tense
     speaker: narrator
     text: >-
       Объявление прошло. Мальчик перестал плакать, но крепко держится
@@ -136,6 +152,8 @@ nodes:
         goto: alone
 
   parents:
+    character: anna
+    mood: upset
     speaker: passenger
     text: >-
       Прибегает мать: «Я на две минуты в бистро отошла! Почему вы его
@@ -176,6 +194,8 @@ nodes:
         goto: good_end
 
   alone:
+    character: misha
+    mood: upset
     speaker: narrator
     text: >-
       Мальчика замечает другой пассажир и ведёт к соседнему проводнику.

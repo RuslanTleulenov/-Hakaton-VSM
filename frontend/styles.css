@@ -159,3 +159,45 @@ th { color: var(--muted); font-weight: 400; font-size: 12px; }
 tr.me td { color: #fff; font-weight: 800; }
 .comp b.up { color: var(--loyal); }
 .comp b.down { color: var(--accent); }
+
+/* --- лайт-новелла --- */
+.novel-card { padding: 12px; }
+.mode {
+  background: transparent; color: var(--muted); border: 1px solid var(--line);
+  border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 12px; cursor: pointer;
+}
+.mode:hover { color: #fff; border-color: var(--accent); }
+
+.stage {
+  position: relative; aspect-ratio: 16 / 9; min-height: 240px; border-radius: 12px;
+  overflow: hidden; background: linear-gradient(160deg, #1b2740, #101726 70%);
+  display: flex; align-items: flex-end;
+}
+/* Заглушки, пока арт не подключён: у каждой сцены своё настроение по свету. */
+.stage[data-scene="business-day"] { background: linear-gradient(160deg, #2b3550 0%, #4a4433 55%, #14182a 100%); }
+.stage[data-scene="service-zone"] { background: linear-gradient(160deg, #1d2a3a 0%, #2f3a46 60%, #11161f 100%); }
+.stage[data-scene="comfort-window"] { background: linear-gradient(160deg, #37405c 0%, #6a5b45 45%, #161b2c 100%); }
+
+.stage .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.stage .actor {
+  position: absolute; right: 4%; bottom: 0; height: 88%;
+  display: flex; align-items: flex-end; filter: drop-shadow(0 8px 24px #0008);
+  transition: transform .3s ease, filter .3s ease;
+}
+.stage .actor img { height: 100%; width: auto; object-fit: contain; }
+.stage .actor.mood-tense { transform: translateY(2px) scale(1.01); }
+.stage .actor.mood-upset { transform: translateX(-6px) scale(1.03); filter: drop-shadow(0 8px 24px #d6001c55); }
+
+.stage .dialogue {
+  position: relative; z-index: 2; margin: 12px; padding: 12px 14px; width: 100%;
+  background: #0b1120e6; border: 1px solid var(--line); border-radius: 12px;
+  backdrop-filter: blur(4px); cursor: pointer;
+}
+.stage .dialogue .who { font-weight: 800; font-size: 14px; }
+.stage .dialogue .who .role { font-weight: 400; color: var(--muted); font-size: 12px; }
+.stage .dialogue .line { margin-top: 4px; min-height: 3.2em; }
+
+@media (max-width: 560px) {
+  .stage { aspect-ratio: auto; min-height: 320px; }
+  .stage .actor { height: 70%; right: 0; opacity: .9; }
+}

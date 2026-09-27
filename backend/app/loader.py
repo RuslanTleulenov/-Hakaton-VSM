@@ -7,7 +7,7 @@ from typing import Any
 
 import yaml
 
-from .domain import Branch, Effects, Node, Option, Scenario, Timeout, Trip
+from .domain import MOODS, Branch, Character, Effects, Node, Option, Scenario, Timeout, Trip
 
 CONTENT = Path(__file__).resolve().parents[2] / "content"
 
@@ -41,6 +41,9 @@ def _node(node_id: str, raw: dict[str, Any]) -> Node:
         options=[_option(o) for o in raw.get("options", [])],
         timeout=timeout,
         ending=raw.get("ending"),
+        scene=raw.get("scene"),
+        character=raw.get("character"),
+        mood=raw.get("mood", "calm"),
     )
 
 
@@ -57,6 +60,11 @@ def parse_scenario(raw: dict[str, Any]) -> Scenario:
         sources=list(raw.get("sources", [])),
         start=raw["start"],
         nodes=nodes,
+        scene=raw.get("scene"),
+        characters={
+            cid: Character(id=cid, name=c["name"], sprite=c.get("sprite", cid), role=c.get("role", ""))
+            for cid, c in raw.get("characters", {}).items()
+        },
         start_loyalty=int(raw.get("start_loyalty", 70)),
         start_safety=int(raw.get("start_safety", 80)),
     )
@@ -84,6 +92,11 @@ def _validate(s: Scenario) -> None:
             reachable.add(node.timeout.goto)
         if node.timer and not node.timeout:
             raise ValueError(f"{s.id}/{node.id}: есть таймер, но нет ветки timeout")
+    for node in s.nodes.values():
+        if node.character and node.character not in s.characters:
+            raise ValueError(f"{s.id}/{node.id}: персонаж {node.character!r} не описан в characters")
+        if node.mood not in MOODS:
+            raise ValueError(f"{s.id}/{node.id}: неизвестное настроение {node.mood!r}")
     unreachable = set(s.nodes) - reachable
     if unreachable:
         raise ValueError(f"{s.id}: недостижимые узлы {sorted(unreachable)}")

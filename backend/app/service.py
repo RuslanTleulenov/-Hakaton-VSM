@@ -148,12 +148,27 @@ def _state_from_json(raw: str) -> engine.RunState:
 
 def _node_view(scenario: Scenario, state: engine.RunState) -> dict:
     node = scenario.node(state.node_id)
+    scene = node.scene or scenario.scene
+    character = scenario.characters.get(node.character) if node.character else None
     return {
         "node_id": node.id,
         "text": node.text,
         "speaker": node.speaker,
         "timer": node.timer,
         "critical": node.critical,
+        # Слой новеллы: пути к ассетам считает сервер, интерфейс их просто
+        # подставляет. Файла может не быть — тогда фронтенд рисует заглушку.
+        "scene": scene,
+        "scene_image": f"/static/assets/scenes/{scene}.jpg" if scene else None,
+        "character": None
+        if character is None
+        else {
+            "id": character.id,
+            "name": character.name,
+            "role": character.role,
+            "mood": node.mood,
+            "sprite": f"/static/assets/characters/{character.sprite}-{node.mood}.png",
+        },
         "options": [
             {"id": o.id, "text": o.text, "step": o.step}
             for o in engine.available_options(scenario, state)

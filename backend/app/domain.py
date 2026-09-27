@@ -17,6 +17,15 @@ COMPETENCES = {
     "teamwork": "Работа с бригадой",
 }
 
+# Настроения персонажей: по одному спрайту на каждое. Ядро их не трактует —
+# это слой представления, который дизайнер меняет без программиста.
+MOODS = {
+    "calm": "спокоен",
+    "pleased": "доволен",
+    "tense": "напряжён",
+    "upset": "на взводе",
+}
+
 # Шаги ролевой модели из методички «Примеры ситуаций взаимодействия
 # поездного персонала с пассажирами»: признать → правило → решение → заверить.
 STEPS = {
@@ -51,6 +60,16 @@ class Effects:
             set_flags=list(raw.get("set", [])),
             clear_flags=list(raw.get("clear", [])),
         )
+
+
+@dataclass(frozen=True)
+class Character:
+    """Персонаж сцены. `sprite` — базовое имя файлов `<sprite>-<mood>.png`."""
+
+    id: str
+    name: str
+    sprite: str
+    role: str = ""                   # подпись в интерфейсе: «пассажир», «начальник поезда»
 
 
 @dataclass(frozen=True)
@@ -112,6 +131,9 @@ class Node:
     options: list[Option] = field(default_factory=list)
     timeout: Timeout | None = None
     ending: str | None = None        # good | neutral | bad — узел финальный
+    scene: str | None = None         # фон сцены, если отличается от сценарного
+    character: str | None = None     # кто в кадре
+    mood: str = "calm"               # с каким настроением
 
     @property
     def is_final(self) -> bool:
@@ -132,6 +154,8 @@ class Scenario:
     sources: list[str]               # ссылки на регламент/методичку
     start: str
     nodes: dict[str, Node]
+    scene: str | None = None         # фон по умолчанию для всех узлов
+    characters: dict[str, Character] = field(default_factory=dict)
     start_loyalty: int = 70
     start_safety: int = 80
 
