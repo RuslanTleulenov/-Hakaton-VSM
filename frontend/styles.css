@@ -173,10 +173,12 @@ tr.me td { color: #fff; font-weight: 800; }
   overflow: hidden; background: linear-gradient(160deg, #1b2740, #101726 70%);
   display: flex; align-items: flex-end;
 }
-/* Заглушки, пока арт не подключён: у каждой сцены своё настроение по свету. */
-.stage[data-scene="business-day"] { background: linear-gradient(160deg, #2b3550 0%, #4a4433 55%, #14182a 100%); }
-.stage[data-scene="service-zone"] { background: linear-gradient(160deg, #1d2a3a 0%, #2f3a46 60%, #11161f 100%); }
-.stage[data-scene="comfort-window"] { background: linear-gradient(160deg, #37405c 0%, #6a5b45 45%, #161b2c 100%); }
+/* Векторные подложки: сцена выглядит законченной ещё до подключения арта.
+   Когда рядом появится <scene>.jpg, фотография ляжет поверх. */
+.stage[data-scene] { background-size: cover; background-position: center; }
+.stage[data-scene="business-day"] { background-image: url("/static/assets/scenes/business-day.svg"); }
+.stage[data-scene="service-zone"] { background-image: url("/static/assets/scenes/service-zone.svg"); }
+.stage[data-scene="comfort-window"] { background-image: url("/static/assets/scenes/comfort-window.svg"); }
 
 .stage .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .stage .actor {

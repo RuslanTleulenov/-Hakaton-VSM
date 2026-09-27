@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+  <defs>
+    <linearGradient id="air" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b3550"/><stop offset="1" stop-color="#0e1420"/>
+    </linearGradient>
+    <linearGradient id="win" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#cfe0f5"/><stop offset="1" stop-color="#e8dcc0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.62" cy="0.34" r="0.55">
+      <stop offset="0" stop-color="#f3e0b5" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#f3e0b5" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d1320"/><stop offset="1" stop-color="#070b13"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#air)"/>
+
+  <!-- потолочная линия и подсветка -->
+  <path d="M0,0 L1600,0 L1600,120 C1100,196 500,196 0,120 Z" fill="#ffffff" opacity="0.045"/>
+  <path d="M120,150 C560,210 1040,210 1480,150" stroke="#ffffff" stroke-opacity="0.12" stroke-width="3" fill="none"/>
+
+  <!-- окна: уходят в перспективу -->
+  <g>
+    <rect x="70" y="250" width="300" height="230" rx="26" fill="url(#win)"/>
+    <rect x="410" y="268" width="250" height="196" rx="22" fill="url(#win)" opacity="0.85"/>
+    <rect x="700" y="284" width="196" height="166" rx="18" fill="url(#win)" opacity="0.7"/>
+    <rect x="936" y="296" width="150" height="140" rx="16" fill="url(#win)" opacity="0.55"/>
+    <rect x="1126" y="306" width="112" height="118" rx="14" fill="url(#win)" opacity="0.4"/>
+  </g>
+
+  <!-- размытый пейзаж за окном -->
+  <g opacity="0.35" fill="#ffffff">
+    <rect x="70" y="392" width="300" height="12" rx="6"/>
+    <rect x="410" y="396" width="250" height="10" rx="5"/>
+    <rect x="700" y="400" width="196" height="8" rx="4"/>
+  </g>
+
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- пол и проход -->
+  <path d="M0,760 L1600,760 L1600,900 L0,900 Z" fill="url(#floor)"/>
+  <path d="M620,760 L980,760 L1210,900 L390,900 Z" fill="#ffffff" opacity="0.03"/>
+
+  <!-- кресла: два ряда по обе стороны прохода -->
+  <g fill="#6d6350">
+    <path d="M40,560 h250 a26,26 0 0 1 26,26 v210 h-302 v-210 a26,26 0 0 1 26,-26 z"/>
+    <path d="M330,596 h210 a22,22 0 0 1 22,22 v182 h-254 v-182 a22,22 0 0 1 22,-22 z" opacity="0.9"/>
+  </g>
+  <g fill="#5d5648">
+    <path d="M1250,548 h280 a28,28 0 0 1 28,28 v224 h-336 v-224 a28,28 0 0 1 28,-28 z"/>
+    <path d="M1060,590 h190 a22,22 0 0 1 22,22 v188 h-234 v-188 a22,22 0 0 1 22,-22 z" opacity="0.9"/>
+  </g>
+
+  <!-- подголовники и столик -->
+  <g fill="#ffffff" opacity="0.08">
+    <rect x="60" y="576" width="210" height="52" rx="18"/>
+    <rect x="1270" y="566" width="240" height="56" rx="18"/>
+  </g>
+  <rect x="600" y="700" width="420" height="16" rx="8" fill="#ffffff" opacity="0.07"/>
+
+  <rect width="1600" height="900" fill="#070b13" opacity="0.1"/>
+</svg>
