@@ -1,0 +1,15 @@
+# Локальный запуск одной командой: docker compose up --build
+# Том с базой вынесен наружу, чтобы прогресс переживал пересборку образа.
+services:
+  trainer:
+    build: .
+    ports:
+      - "8040:8040"
+    volumes:
+      - trainer-data:/app/data
+      - ./content:/app/content:ro     # сценарии правятся без пересборки образа
+    environment:
+      TZ: Europe/Moscow
+
+volumes:
+  trainer-data:
