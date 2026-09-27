@@ -15,7 +15,7 @@ from typing import Any
 from . import achievements as ach
 from . import engine
 from .db import dumps, loads
-from .domain import COMPETENCES, Scenario, Trip
+from .domain import COMPETENCES, Scenario
 from .loader import Content
 
 # Уровни проводника по опыту: стажёр → наставник.

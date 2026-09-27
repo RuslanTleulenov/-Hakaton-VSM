@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from app import engine, service
+from app import service
 from app.db import connect
 from app.loader import Content, load_content
 
