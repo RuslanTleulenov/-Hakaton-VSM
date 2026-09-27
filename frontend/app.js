@@ -25,10 +25,8 @@ async function api(path, options = {}) {
   return response.json();
 }
 
-function el(html) {
-  const wrap = document.createElement("div");
-  wrap.innerHTML = html.trim();
-  return wrap.firstElementChild;
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
 
 function scales(loyalty, safety, deltas = {}) {
@@ -50,14 +48,61 @@ function scales(loyalty, safety, deltas = {}) {
 /* --- каталог рейсов --- */
 
 async function viewCatalog() {
-  const scenarios = await api(`/scenarios?login=${encodeURIComponent(state.login)}`);
+  const [trips, scenarios, challenge, streak] = await Promise.all([
+    api("/trips"),
+    api(`/scenarios?login=${encodeURIComponent(state.login)}`),
+    api(`/challenge?login=${encodeURIComponent(state.login)}`),
+    api(`/conductors/${encodeURIComponent(state.login)}/streak`),
+  ]);
+
+  const expiring = streak.expiring;
   app.innerHTML = `
-    <div class="card">
-      <h3>Смена началась</h3>
-      <div class="meta">Рейсы подобраны под ваш профиль: сверху те, что вы ещё не проходили
-      или прошли хуже всего.</div>
-    </div>` +
-    scenarios
+    <div class="card challenge">
+      <div class="row spread">
+        <h3>🏁 Рейс недели · ${challenge.week}</h3>
+        <span class="meta">${challenge.played ? "вы уже прошли" : `бонус ${challenge.bonus_xp} очков`}</span>
+      </div>
+      <div class="meta">Один и тот же сценарий для всех бригад — сравнение честное.</div>
+      <p><b>${challenge.scenario.title}</b><br><span class="meta">${challenge.scenario.summary}</span></p>
+      <div class="row spread">
+        <span class="meta">🔥 Серия: ${streak.streak_days} дн.${
+          expiring.days_left !== null && expiring.points
+            ? ` · ${expiring.points} очков челленджа сгорят через ${expiring.days_left} дн.`
+            : ""
+        }</span>
+        <button class="primary" data-challenge="${challenge.scenario.id}">Пройти рейс недели</button>
+      </div>
+    </div>
+
+    <div class="card"><h3>Рейсы смены</h3>
+      <div class="meta">Несколько инцидентов подряд: шкалы не обнуляются, а пассажиры
+      помнят, как вы с ними обошлись на прошлом перегоне.</div>
+    </div>
+    ${trips
+      .map(
+        (t) => `
+      <div class="card trip">
+        <div class="row spread">
+          <h3>${t.title}</h3>
+          <span class="meta">${"★".repeat(t.difficulty)}</span>
+        </div>
+        <div class="meta">${t.route}</div>
+        <p>${t.summary}</p>
+        <div class="chain">
+          ${t.segments.map((s, i) => `<span class="link">${i + 1}. ${s.title}</span>`).join('<span class="arrow">→</span>')}
+        </div>
+        <div class="row spread">
+          <span class="meta">${t.segments.length} инцидента подряд</span>
+          <button class="primary" data-trip="${t.id}">В рейс</button>
+        </div>
+      </div>`
+      )
+      .join("")}
+
+    <div class="card"><h3>Отдельные ситуации</h3>
+      <div class="meta">Порядок подобран под ваш профиль: сверху непройденные и те, что дались хуже.</div>
+    </div>
+    ${scenarios
       .map(
         (s) => `
       <div class="card">
@@ -69,23 +114,31 @@ async function viewCatalog() {
         <p>${s.summary}</p>
         <div class="row spread">
           <span class="meta">Источник: ${s.sources.join("; ")}</span>
-          <button class="primary" data-start="${s.id}">В рейс</button>
+          <button class="ghost" data-start="${s.id}">Пройти</button>
         </div>
       </div>`
       )
-      .join("");
+      .join("")}`;
 
   app.querySelectorAll("[data-start]").forEach((button) =>
-    button.addEventListener("click", () => startRun(button.dataset.start))
+    button.addEventListener("click", () => startRun({ scenario_id: button.dataset.start }))
+  );
+  app.querySelectorAll("[data-trip]").forEach((button) =>
+    button.addEventListener("click", () => startRun({ trip_id: button.dataset.trip }))
+  );
+  app.querySelectorAll("[data-challenge]").forEach((button) =>
+    button.addEventListener("click", () =>
+      startRun({ scenario_id: button.dataset.challenge, challenge: true })
+    )
   );
 }
 
 /* --- партия --- */
 
-async function startRun(scenarioId) {
+async function startRun(params) {
   state.run = await api("/runs", {
     method: "POST",
-    body: JSON.stringify({ login: state.login, scenario_id: scenarioId }),
+    body: JSON.stringify({ login: state.login, ...params }),
   });
   renderRun();
 }
@@ -97,6 +150,29 @@ function stopTimer() {
   }
 }
 
+function tripBar(trip) {
+  if (!trip) return "";
+  return `
+    <div class="card trip-bar">
+      <div class="row spread">
+        <b>${trip.title}</b>
+        <span class="meta">инцидент ${trip.position} из ${trip.total}</span>
+      </div>
+      <div class="steps">
+        ${Array.from({ length: trip.total }, (_, i) =>
+          `<i class="${i + 1 < trip.position ? "done" : i + 1 === trip.position ? "now" : ""}"></i>`
+        ).join("")}
+      </div>
+      ${
+        trip.memory.length
+          ? `<div class="memory">Память рейса: ${trip.memory
+              .map((m) => `<span class="chip">${m.label}</span>`)
+              .join("")}</div>`
+          : ""
+      }
+    </div>`;
+}
+
 function renderRun(lastEvent) {
   stopTimer();
   const run = state.run;
@@ -105,9 +181,12 @@ function renderRun(lastEvent) {
   const node = run.node;
   app.innerHTML =
     scales(run.loyalty, run.safety, lastEvent ? { loyalty: lastEvent.loyalty_delta, safety: lastEvent.safety_delta } : {}) +
+    tripBar(run.trip) +
     `<div class="card">
       <div class="row spread">
-        <span class="meta">${run.scenario.title} · ${run.scenario.segment} · до остановки ${run.scenario.minutes_to_stop} мин</span>
+        <span class="meta">${run.scenario.title} · ${run.scenario.segment}${
+          run.scenario.minutes_to_stop ? ` · до остановки ${run.scenario.minutes_to_stop} мин` : ""
+        }</span>
         ${node.critical ? '<span class="critical-tag">критическое решение</span>' : ""}
       </div>
       ${node.timer ? `
@@ -169,11 +248,30 @@ async function choose(optionId) {
   const event = result.event;
   state.run = result;
   if (result.finished) {
-    state.lastResult = result.result;
     renderDebrief();
+  } else if (result.segment_done) {
+    renderSegmentDone(result.segment_done, event);
   } else {
     renderRun(event);
   }
+}
+
+/* Перегон пройден, но рейс продолжается: пауза между инцидентами. */
+function renderSegmentDone(segment, event) {
+  stopTimer();
+  const run = state.run;
+  const verdict = { good: "Инцидент закрыт", neutral: "Инцидент закрыт с осадком", bad: "Инцидент закрыт плохо" };
+  app.innerHTML =
+    scales(run.loyalty, run.safety) +
+    tripBar(run.trip) +
+    `<div class="card">
+      <h3>${verdict[segment.ending] || "Инцидент закрыт"}: ${segment.title}</h3>
+      <div class="speech"><div>${segment.text}</div></div>
+      <p class="meta">Шкалы и то, что пассажиры запомнили, переходят в следующий инцидент рейса.</p>
+      <button class="primary" id="next-segment">Дальше по маршруту</button>
+    </div>` +
+    eventCard(event);
+  document.getElementById("next-segment").addEventListener("click", () => renderRun());
 }
 
 function eventCard(event) {
@@ -183,8 +281,17 @@ function eventCard(event) {
       <div class="event">
         <div class="reasons">${event.reasons.map((r) => `• ${r}`).join("<br>")}</div>
         ${event.better ? `<div class="better">Как лучше: ${event.better}</div>` : ""}
+        ${alternativeBlock(event)}
       </div>
     </div>`;
+}
+
+function alternativeBlock(event) {
+  if (!event.alternative) return "";
+  const a = event.alternative;
+  return `<div class="alt">Что было бы, если: «${escapeHtml(a.text)}» —
+    ${a.reason} <span class="meta">(лояльность ${a.loyalty >= 0 ? "+" : ""}${a.loyalty},
+    безопасность ${a.safety >= 0 ? "+" : ""}${a.safety})</span></div>`;
 }
 
 /* --- разбор --- */
@@ -194,15 +301,25 @@ async function renderDebrief() {
   const data = await api(`/runs/${state.run.run_id}/debrief`);
   const result = data.result;
   const titles = data.competence_titles;
+  const endings = { good: "✅", neutral: "➖", bad: "❌" };
 
   app.innerHTML = `
     <div class="card">
       <div class="row spread">
-        <h3>Разбор рейса: ${data.scenario.title}</h3>
+        <h3>Разбор: ${data.trip ? data.trip.title : data.scenario.title}</h3>
         <span class="meta">${result.grade} · ${result.score} баллов · +${result.xp} опыта</span>
       </div>
       ${scales(result.loyalty, result.safety)}
-      <div class="meta">Пропущено таймеров: ${result.timeouts}</div>
+      <div class="meta">Пропущено таймеров: ${result.timeouts}${
+        result.streak ? ` · серия ${result.streak} дн.` : ""
+      }</div>
+      ${
+        result.segments.length > 1
+          ? `<div class="chain">${result.segments
+              .map((s) => `<span class="link">${endings[s.ending] || ""} ${s.scenario_id}</span>`)
+              .join('<span class="arrow">→</span>')}</div>`
+          : ""
+      }
       ${result.earned_achievements && result.earned_achievements.length
         ? `<p>Новые достижения: ${result.earned_achievements.map((a) => `${a.icon} ${a.title}`).join(", ")}</p>`
         : ""}
@@ -223,23 +340,17 @@ async function renderDebrief() {
           .join("")}
       </div>
     </div>
-    <div class="card">
-      <h3>Ход за ходом</h3>
-      ${data.events
-        .map(
-          (e) => `
-        <div class="event">
-          <div class="meta">${e.timed_out ? "⏱ время вышло" : `${e.seconds} с${e.timer ? ` из ${e.timer}` : ""}`} ·
-            лояльность ${e.loyalty_delta >= 0 ? "+" : ""}${e.loyalty_delta} ·
-            безопасность ${e.safety_delta >= 0 ? "+" : ""}${e.safety_delta}</div>
-          <div><b>${e.option_text}</b></div>
-          <div class="reasons">${e.reasons.map((r) => `• ${r}`).join("<br>")}</div>
-          ${e.better ? `<div class="better">Как лучше: ${e.better}</div>` : ""}
-        </div>`
-        )
-        .join("")}
-      <div class="meta">Нормативная основа: ${data.scenario.sources.join("; ")}</div>
-    </div>
+    ${data.parts
+      .map(
+        (part) => `
+      <div class="card">
+        <h3>${part.title}</h3>
+        <div class="meta">${part.segment}</div>
+        ${part.events.map(eventRow).join("")}
+        <div class="meta">Нормативная основа: ${part.sources.join("; ")}</div>
+      </div>`
+      )
+      .join("")}
     <div class="row">
       <button class="primary" id="again">Ещё рейс</button>
       <button class="ghost" id="to-profile">В профиль</button>
@@ -249,10 +360,26 @@ async function renderDebrief() {
   document.getElementById("to-profile").addEventListener("click", () => switchTo("profile"));
 }
 
+function eventRow(e) {
+  return `
+    <div class="event">
+      <div class="meta">${e.timed_out ? "⏱ время вышло" : `${e.seconds} с${e.timer ? ` из ${e.timer}` : ""}`} ·
+        лояльность ${e.loyalty_delta >= 0 ? "+" : ""}${e.loyalty_delta} ·
+        безопасность ${e.safety_delta >= 0 ? "+" : ""}${e.safety_delta}</div>
+      <div><b>${e.option_text}</b></div>
+      <div class="reasons">${e.reasons.map((r) => `• ${r}`).join("<br>")}</div>
+      ${e.better ? `<div class="better">Как лучше: ${e.better}</div>` : ""}
+      ${alternativeBlock(e)}
+    </div>`;
+}
+
 /* --- профиль, рейтинг, аналитика, уведомления --- */
 
 async function viewProfile() {
-  const profile = await api(`/conductors/${encodeURIComponent(state.login)}`);
+  const [profile, streak] = await Promise.all([
+    api(`/conductors/${encodeURIComponent(state.login)}`),
+    api(`/conductors/${encodeURIComponent(state.login)}/streak`),
+  ]);
   const titles = profile.competence_titles;
   app.innerHTML = `
     <div class="card">
@@ -268,7 +395,8 @@ async function viewProfile() {
           ? Math.min(100, (profile.level.xp / (profile.level.xp + profile.level.xp_to_next)) * 100)
           : 100}%"></i></div>
       </div>
-      <div class="meta">Рейсов пройдено: ${profile.runs_completed} · средний балл: ${profile.average_score}</div>
+      <div class="meta">Рейсов пройдено: ${profile.runs_completed} · средний балл: ${profile.average_score}
+        · 🔥 серия ${streak.streak_days} дн.</div>
     </div>
     <div class="card">
       <h3>Компетенции</h3>
@@ -286,7 +414,7 @@ async function viewProfile() {
       <h3>Достижения</h3>
       <div class="achv">
         ${profile.achievements
-          .map((a) => `<div class="item ${a.earned ? "on" : ""}" title="${a.description}">${a.icon} ${a.title}</div>`)
+          .map((a) => `<div class="item ${a.earned ? "on" : ""}" title="${escapeHtml(a.description)}">${a.icon} ${a.title}</div>`)
           .join("")}
       </div>
     </div>
@@ -303,15 +431,27 @@ async function viewProfile() {
 }
 
 async function viewLeaderboard() {
-  const rows = await api("/leaderboard?scope=company");
+  const [rows, challenge] = await Promise.all([
+    api("/leaderboard?scope=company"),
+    api(`/challenge?login=${encodeURIComponent(state.login)}`),
+  ]);
   app.innerHTML = `
+    <div class="card challenge">
+      <h3>🏁 Рейс недели · ${challenge.week}</h3>
+      <div class="meta">${challenge.scenario.title} — один сценарий для всех бригад.</div>
+      <table><tr><th>#</th><th>Проводник</th><th>Бригада</th><th>Лучший балл</th></tr>
+      ${challenge.leaderboard
+        .map((r) => `<tr><td>${r.place}</td><td>${r.display_name}</td><td>${r.brigade}</td><td>${r.best}</td></tr>`)
+        .join("") || '<tr><td colspan="4" class="meta">Ещё никто не проходил</td></tr>'}
+      </table>
+    </div>
     <div class="card">
       <h3>Рейтинг проводников</h3>
       <div class="meta">Опыт начисляется за баллы рейса с поправкой на сложность сценария.</div>
       <table><tr><th>#</th><th>Проводник</th><th>Бригада</th><th>Уровень</th><th>Опыт</th><th>Средний балл</th></tr>
       ${rows
         .map(
-          (r) => `<tr${r.login === state.login ? ' style="color:#fff"' : ""}>
+          (r) => `<tr${r.login === state.login ? ' class="me"' : ""}>
             <td>${r.place}</td><td>${r.display_name}</td><td>${r.brigade}</td>
             <td>${r.level}</td><td>${r.xp}</td><td>${r.avg_score}</td></tr>`
         )
@@ -321,11 +461,34 @@ async function viewLeaderboard() {
 }
 
 async function viewAnalytics() {
-  const hotspots = await api("/analytics/hotspots?limit=8");
+  const [hotspots, trend] = await Promise.all([
+    api("/analytics/hotspots?limit=8"),
+    api(`/analytics/trend?login=${encodeURIComponent(state.login)}`),
+  ]);
   app.innerHTML = `
     <div class="card">
+      <h3>Ваша динамика</h3>
+      <div class="meta">Сравнение первой и второй половины последних рейсов: что растёт, а что нет.</div>
+      <div class="comp">
+        ${trend.competences
+          .map(
+            (c) => `<div class="line"><span>${c.title}</span>
+              <b class="${c.delta < 0 ? "down" : "up"}">${c.delta > 0 ? "+" : ""}${c.delta}</b></div>`
+          )
+          .join("")}
+      </div>
+      ${
+        trend.points.length
+          ? `<table><tr><th>Рейс</th><th>Сценарий</th><th>Балл</th></tr>
+             ${trend.points
+               .map((p, i) => `<tr><td>${i + 1}</td><td>${p.scenario_id}</td><td>${p.score}</td></tr>`)
+               .join("")}</table>`
+          : '<div class="meta">Пройдите пару рейсов — здесь появится динамика.</div>'
+      }
+    </div>
+    <div class="card">
       <h3>Где ошибаются чаще всего</h3>
-      <div class="meta">Развилки с наибольшей потерей шкал по всем прохождениям — это данные
+      <div class="meta">Развилки с наибольшей потерей шкал по всем прохождениям — данные
       для методистов о реальных пробелах в подготовке.</div>
       <table><tr><th>Сценарий</th><th>Узел</th><th>Прохождений</th><th>Средний ущерб</th><th>Таймаутов</th></tr>
       ${hotspots
@@ -341,7 +504,7 @@ async function viewAnalytics() {
 async function viewNotifications() {
   const items = await api(`/notifications?login=${encodeURIComponent(state.login)}`);
   app.innerHTML =
-    `<div class="card"><h3>Уведомления</h3><div class="meta">Новые сценарии, челленджи и сгорающие баллы.</div></div>` +
+    `<div class="card"><h3>Уведомления</h3><div class="meta">Новые сценарии, челленджи, назначения и сгорающие баллы.</div></div>` +
     items
       .map(
         (n) => `<div class="card" style="${n.read ? "opacity:.5" : ""}">

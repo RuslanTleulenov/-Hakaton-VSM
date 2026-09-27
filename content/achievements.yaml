@@ -61,3 +61,33 @@ achievements:
     icon: "🏅"
     condition:
       runs_completed: 10
+
+  - id: full-trip
+    title: Полная смена
+    description: Пройден рейс из трёх инцидентов подряд
+    icon: "🛤️"
+    condition:
+      trip_segments: 3
+
+  - id: trip-clean
+    title: Смена без потерь
+    description: Рейс из нескольких инцидентов с итогом 85+ и без пропущенных таймеров
+    icon: "🥇"
+    condition:
+      trip_segments: 3
+      min_score: 85
+      max_timeouts: 0
+
+  - id: streak-3
+    title: Три дня подряд
+    description: Тренажёр открывали три дня подряд
+    icon: "🔥"
+    condition:
+      streak_days: 3
+
+  - id: streak-7
+    title: Неделя в строю
+    description: Семь дней подряд без пропусков
+    icon: "🏆"
+    condition:
+      streak_days: 7

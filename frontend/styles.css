@@ -132,3 +132,30 @@ th { color: var(--muted); font-weight: 400; font-size: 12px; }
 
 .foot { padding: 16px; text-align: center; border-top: 1px solid var(--line); }
 .foot a { color: var(--muted); }
+
+/* --- рейсы, челлендж, память --- */
+.card.challenge { border-color: #4a2b18; background: linear-gradient(180deg, #24191a, var(--surface)); }
+.card.trip { border-left: 3px solid var(--accent); }
+
+.chain { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+.chain .link { background: var(--surface-2); border-radius: 8px; padding: 4px 10px; font-size: 13px; }
+.chain .arrow { color: var(--muted); }
+
+.trip-bar .steps { display: flex; gap: 6px; margin-top: 8px; }
+.trip-bar .steps i { flex: 1; height: 5px; border-radius: 999px; background: var(--surface-2); }
+.trip-bar .steps i.done { background: var(--loyal); }
+.trip-bar .steps i.now { background: var(--accent); }
+.memory { margin-top: 10px; font-size: 13px; color: var(--muted); }
+.chip {
+  display: inline-block; background: #1b2c22; border: 1px solid #2f5a42; color: #a6e3c2;
+  border-radius: 999px; padding: 3px 10px; margin: 4px 6px 0 0; font-size: 12px;
+}
+
+.alt {
+  margin-top: 8px; padding: 8px 10px; border-radius: 10px;
+  background: #151f33; border: 1px dashed var(--line); font-size: 13px; color: #cddaf0;
+}
+
+tr.me td { color: #fff; font-weight: 800; }
+.comp b.up { color: var(--loyal); }
+.comp b.down { color: var(--accent); }

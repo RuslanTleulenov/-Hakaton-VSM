@@ -328,7 +328,7 @@ def score(scenario: Scenario, state: RunState) -> dict[str, Any]:
     endings = [segment["ending"] for segment in state.segments] + [state.ending or "neutral"]
     bonuses = [{"good": 10, "neutral": 0, "bad": -10}.get(ending or "neutral", 0) for ending in endings]
     ending_bonus = round(sum(bonuses) / len(bonuses))
-    total = clamp(base + ending_bonus - 3 * timeouts, 0, 110)
+    total = clamp(base + ending_bonus - 3 * timeouts)   # итог всегда в шкале 0..100
     grade = next(name for threshold, name in GRADES if total >= threshold)
     return {
         "loyalty": state.loyalty,
