@@ -1,0 +1,281 @@
+id: double-seat
+title: Два пассажира на одно место
+summary: >-
+  Посадка в Москве закончилась, поезд набирает ход. В бизнес-классе на
+  месте 4А сидит пассажир, к которому подходит второй — с билетом на то же
+  место. Оба на нервах, вокруг полный вагон.
+segment: Москва — Тверь
+minutes_to_stop: 24
+car_class: бизнес
+difficulty: 2
+start_loyalty: 65
+start_safety: 90
+sources:
+  - "«Примеры ситуаций взаимодействия поездного персонала с пассажирами», ситуации 13, 24, 33, 44"
+start: clash
+
+nodes:
+  clash:
+    speaker: passenger
+    text: >-
+      «Это моё место, у меня билет! Пусть он встаёт!» — второй пассажир стоит
+      в проходе с чемоданом, первый демонстративно отворачивается к окну.
+      Соседние кресла уже наблюдают.
+    timer: 25
+    timeout:
+      goto: escalated
+      reason: "Пауза у конфликта: пассажиры перешли на повышенные тона, в спор включились соседи"
+      effects:
+        loyalty: -8
+        safety: -5
+    options:
+      - id: both
+        step: acknowledge
+        text: "«Понимаю, ситуация неприятная. Позвольте ваши билеты — разберёмся вместе»"
+        reason: "Проводник не занимает сторону и переводит спор в проверку документов (ситуация 33)"
+        effects:
+          loyalty: 8
+          competences: {deescalation: 3, service: 1}
+          set: [tickets_checked]
+        goto: check
+      - id: side
+        step: rule
+        text: "«Мужчина, встаньте, пожалуйста, человек с билетом пришёл»"
+        reason: "Сторона выбрана до проверки документов — второй пассажир чувствует себя виноватым публично"
+        better: "Сначала проверить оба билета: при сбое системы правы оба, и виноватых в салоне быть не должно"
+        effects:
+          loyalty: -6
+          competences: {deescalation: -2}
+        goto: check
+      - id: chief_now
+        step: solution
+        text: "Сразу вызвать начальника поезда, не разбираясь"
+        reason: "Начальник поезда нужен, но проводник не сделал того, что в его компетенции"
+        better: "Проверить билеты самому: начальник поезда подключается, когда данные сверены"
+        effects:
+          loyalty: -2
+          safety: 2
+          competences: {teamwork: 1}
+          set: [chief_called]
+        goto: chief_arrives
+
+  check:
+    speaker: narrator
+    text: >-
+      Билеты действительны оба: одно и то же место, один и тот же рейс.
+      Похоже на сбой при оформлении. Свободных мест в бизнес-классе нет,
+      есть два в комфорте и одно место в первом классе.
+    timer: 30
+    critical: true
+    timeout:
+      goto: escalated
+      reason: "Пассажиры остались стоять в проходе, пока проводник молчал"
+      effects:
+        loyalty: -8
+        safety: -4
+    options:
+      - id: chief
+        step: solution
+        text: "«Вижу, что нужен начальник поезда — приглашу его для оформления»"
+        reason: "Двойная продажа оформляется начальником поезда; он уточняет сбой у ответственных лиц (ситуация 33)"
+        effects:
+          loyalty: 6
+          safety: 4
+          competences: {teamwork: 3, safety: 1}
+          set: [chief_called]
+        goto: chief_arrives
+      - id: downgrade
+        step: solution
+        text: "Предложить второму пассажиру пересесть в комфорт-класс"
+        reason: "Понижение класса без оформления и согласия — пассажир теряет оплаченную услугу"
+        better: "При сбое перевозчика пассажиру предлагают равный или высший класс без доплаты"
+        effects:
+          loyalty: -10
+          competences: {service: -2}
+        goto: complaint
+      - id: upgrade
+        step: solution
+        text: "Предложить одному из пассажиров место в первом классе без доплаты"
+        reason: "При сбое по вине перевозчика пассажиру предлагают место в высшем классе без доплаты (ситуация 33)"
+        requires: [tickets_checked]
+        effects:
+          loyalty: 12
+          safety: 2
+          competences: {service: 3, deescalation: 1}
+          set: [offered_upgrade]
+        goto: assure
+
+  chief_arrives:
+    speaker: chief
+    text: >-
+      Начальник поезда сверяет данные: «Сбой на стороне оформления. Есть место
+      в первом классе, оформляю без доплаты. Кому предложим?»
+    timer: 20
+    timeout:
+      goto: assure
+      reason: "Решение принял начальник поезда, проводник остался наблюдателем"
+      effects:
+        loyalty: -3
+        competences: {teamwork: -1}
+    options:
+      - id: standing
+        step: solution
+        text: "«Пассажиру, который стоит в проходе с багажом — он дольше в неудобстве»"
+        reason: "Решение объяснимо и снимает самую острую часть ситуации"
+        effects:
+          loyalty: 8
+          competences: {service: 2, deescalation: 1}
+          set: [offered_upgrade]
+        goto: assure
+      - id: ask_them
+        step: solution
+        text: "Спросить у обоих, кто готов перейти, и предложить перешедшему комплимент"
+        reason: "Выбор остаётся за пассажирами — никто не чувствует себя выселенным"
+        effects:
+          loyalty: 11
+          competences: {service: 3, deescalation: 2}
+          set: [offered_upgrade]
+        goto: assure
+
+  assure:
+    speaker: narrator
+    text: >-
+      Пассажиры расходятся по местам. Салон продолжает наблюдать,
+      первый пассажир всё ещё раздражён.
+    timer: 20
+    timeout:
+      goto: quiet_end
+      reason: "Контакт не закрыт: пассажир остался с осадком, хотя вопрос решён"
+      effects:
+        loyalty: -4
+    options:
+      - id: thanks
+        step: assure
+        text: "«Благодарю вас за понимание. Я подойду через десять минут — проверю, всё ли удобно»"
+        reason: "Завершающий шаг ролевой модели плюс обещание вернуться за обратной связью"
+        effects:
+          loyalty: 10
+          competences: {service: 2}
+        goto: good_end
+      - id: leave
+        step: action
+        text: "Вернуться к обслуживанию: вопрос закрыт"
+        reason: "Ситуация решена, но пассажир остался без завершающего контакта"
+        better: "Одна фраза благодарности закрывает инцидент в памяти пассажира лучше, чем само решение"
+        effects:
+          loyalty: -2
+        goto: quiet_end
+
+  complaint:
+    speaker: passenger
+    text: >-
+      «Я заплатил за бизнес-класс. Давайте книгу жалоб, и я сниму это на видео» —
+      пассажир поднимает телефон и снимает соседей.
+    timer: 20
+    critical: true
+    timeout:
+      goto: escalated
+      reason: "Съёмка других пассажиров продолжается, проводник не реагирует"
+      effects:
+        loyalty: -6
+        safety: -8
+    options:
+      - id: right_to_complain
+        step: rule
+        text: "«Конечно, вы вправе оставить обращение — подскажу QR и контакты. И прошу не снимать других пассажиров без их согласия»"
+        reason: "Жалоба — право пассажира (ситуация 44); съёмка окружающих без согласия ограничивается (ситуация 25)"
+        effects:
+          loyalty: 4
+          safety: 6
+          competences: {safety: 2, deescalation: 2}
+        goto: fix_offer
+      - id: argue
+        step: action
+        text: "«Снимать здесь запрещено, уберите телефон»"
+        reason: "Запрет без объяснения провоцирует конфликт, в который включается весь вагон"
+        better: "Сослаться на согласие других пассажиров, а не на запрет вообще"
+        effects:
+          loyalty: -8
+          safety: -4
+          competences: {deescalation: -2}
+        goto: escalated
+
+  fix_offer:
+    speaker: narrator
+    text: "Есть ещё время исправить ситуацию до Твери."
+    timer: 25
+    timeout:
+      goto: quiet_end
+      reason: "Предложение так и не прозвучало — пассажир доехал с жалобой"
+      effects:
+        loyalty: -5
+    options:
+      - id: upgrade_late
+        step: solution
+        text: "Пригласить начальника поезда и оформить место в первом классе без доплаты"
+        reason: "Сбой перевозчика компенсируется классом обслуживания, а не извинениями"
+        effects:
+          loyalty: 10
+          safety: 2
+          competences: {service: 2, teamwork: 2}
+        goto: assure
+      - id: sorry_only
+        step: assure
+        text: "Извиниться и предложить комплимент — чай и десерт"
+        reason: "Комплимент смягчает, но не возвращает оплаченный класс обслуживания"
+        effects:
+          loyalty: 3
+          competences: {service: 1}
+        goto: quiet_end
+
+  escalated:
+    speaker: chief
+    text: >-
+      Начальник поезда приходит на шум сам. Конфликт слышал весь вагон,
+      двое пассажиров записали видео.
+    timer: 15
+    timeout:
+      goto: bad_end
+      reason: "Объяснений от проводника нет — ситуацию разбирают без него"
+      effects:
+        loyalty: -6
+        safety: -6
+    options:
+      - id: handover
+        step: solution
+        text: "Коротко доложить факты и передать оформление начальнику поезда"
+        reason: "Факты переданы бригаде, ситуация возвращается в штатный порядок"
+        effects:
+          loyalty: 4
+          safety: 6
+          competences: {teamwork: 2}
+        goto: quiet_end
+      - id: blame
+        step: action
+        text: "Объяснить, что виноваты сами пассажиры"
+        reason: "Перекладывание вины на пассажиров закрывает возможность решения"
+        effects:
+          loyalty: -8
+          safety: -4
+          competences: {service: -2, teamwork: -2}
+        goto: bad_end
+
+  good_end:
+    ending: good
+    text: >-
+      Оба пассажира едут дальше: один — в первом классе, второй — на своём
+      месте. Обращений после рейса нет, в отзыве о поездке упомянута
+      «спокойная работа проводника».
+
+  quiet_end:
+    ending: neutral
+    text: >-
+      Вопрос решён, но осадок остался: один из пассажиров оставил обращение
+      через приложение. Начальник поезда фиксирует инцидент как сбой оформления.
+
+  bad_end:
+    ending: bad
+    text: >-
+      Видео конфликта появляется в сети в тот же вечер. Разбор в депо:
+      двойная продажа — сбой системы, но публичный спор в салоне — работа
+      проводника.

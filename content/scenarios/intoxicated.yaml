@@ -1,0 +1,281 @@
+id: intoxicated
+title: Пассажир с признаками опьянения
+summary: >-
+  Стандарт-класс, перегон Тверь — Санкт-Петербург. Пассажир вернулся из
+  вагона-бистро, говорит громко, требует ещё алкоголь и задевает соседей.
+  Рядом едет семья с ребёнком.
+segment: Тверь — Санкт-Петербург
+minutes_to_stop: 41
+car_class: стандарт
+difficulty: 3
+start_loyalty: 60
+start_safety: 80
+sources:
+  - "«Примеры ситуаций взаимодействия поездного персонала с пассажирами», ситуации 6, 20, 21, 50"
+start: request
+
+nodes:
+  request:
+    speaker: passenger
+    text: >-
+      «Слушай, принеси ещё коньяка, у меня же бизнес… ну, почти бизнес» —
+      пассажир держится за спинку кресла, говорит громко. Соседи
+      переглядываются.
+    timer: 20
+    timeout:
+      goto: smoking
+      reason: "Молчание прочитано как согласие: пассажир идёт в бистро сам и заводится сильнее"
+      effects:
+        loyalty: -4
+        safety: -8
+    options:
+      - id: soft_refuse
+        step: solution
+        text: "«К сожалению, этот напиток я предложить не могу. Позвольте предложить вам чай или кофе?»"
+        reason: "Вежливый отказ с альтернативой — рекомендованная реакция (ситуация 50)"
+        effects:
+          loyalty: 4
+          safety: 8
+          competences: {safety: 2, deescalation: 2}
+          set: [refused_softly]
+        goto: reaction
+      - id: hard_refuse
+        step: rule
+        text: "«Вы пьяны, алкоголь я вам не принесу»"
+        reason: "Прямая оценка состояния провоцирует агрессию — методичка запрещает говорить о состоянии вслух"
+        better: "Отказать со ссылкой на сервис и предложить альтернативу, не называя состояние пассажира"
+        effects:
+          loyalty: -10
+          safety: -6
+          competences: {deescalation: -3}
+        goto: aggression
+      - id: serve
+        step: action
+        text: "Принести напиток, чтобы не спорить"
+        reason: "Обслуживание пассажира с признаками опьянения увеличивает риск для всего вагона"
+        better: "Отказать мягко и предупредить начальника поезда — конфликт дешевле предотвратить"
+        effects:
+          loyalty: 5
+          safety: -20
+          competences: {safety: -3}
+          set: [served]
+        goto: aggression
+
+  reaction:
+    speaker: passenger
+    text: >-
+      «Понял, понял… Значит, я сам схожу» — пассажир направляется в тамбур,
+      по дороге задевает кресло, где сидит ребёнок.
+    timer: 18
+    critical: true
+    timeout:
+      goto: smoking
+      reason: "Пассажир ушёл в тамбур без внимания проводника"
+      effects:
+        safety: -10
+    options:
+      - id: radio_chief
+        step: solution
+        text: "По рации сообщить начальнику поезда: «Нужна ваша помощь в 7-м вагоне, пассажир требует внимания»"
+        reason: "Начальник поезда извещён, но по рации не сказано, что пассажир пьян — чтобы не спровоцировать агрессию (ситуация 6)"
+        effects:
+          safety: 15
+          competences: {safety: 3, teamwork: 3}
+          set: [chief_informed]
+        goto: smoking
+      - id: radio_blunt
+        step: solution
+        text: "По рации: «В седьмом вагоне пьяный пассажир, нужна помощь»"
+        reason: "Пассажир слышит формулировку по рации — методичка прямо не рекомендует так говорить"
+        better: "Та же просьба, но без оценки состояния: пассажир не должен услышать про себя «пьяный»"
+        effects:
+          loyalty: -6
+          safety: 6
+          competences: {teamwork: 1, deescalation: -1}
+          set: [chief_informed]
+        goto: aggression
+      - id: escort
+        step: action
+        text: "Пойти следом и придержать пассажира за локоть"
+        reason: "Физический контакт с нетрезвым пассажиром — прямой путь к агрессии"
+        better: "Держать дистанцию и звать бригаду: в контакт с таким пассажиром проводник не вступает"
+        effects:
+          safety: -12
+          competences: {safety: -2, deescalation: -2}
+        goto: aggression
+
+  smoking:
+    speaker: narrator
+    text: >-
+      Из тамбура тянет дымом электронной сигареты. Датчик пока молчит,
+      но пассажиры из ближних рядов уже оборачиваются.
+    timer: 15
+    critical: true
+    timeout:
+      goto: security
+      reason: "Задымление в тамбуре продолжается — угроза безопасности движения"
+      effects:
+        safety: -18
+        loyalty: -5
+    options:
+      - id: stop_smoking
+        step: rule
+        text: "«Прошу вас прекратить курение. На борту это не допускается — это вопрос безопасности движения»"
+        reason: "Нарушение прекращается с акцентом на безопасность движения (ситуация 20)"
+        effects:
+          loyalty: 2
+          safety: 12
+          competences: {safety: 3}
+          set: [warned]
+        goto: security
+      - id: wait
+        step: action
+        text: "Дождаться, пока докурит: спорить с нетрезвым себе дороже"
+        reason: "Задымление на борту не допускается любым доступным способом — бездействие здесь недопустимо"
+        better: "Требование прекратить курение обязательно, даже если пассажир настроен агрессивно; параллельно — ПТБ и начальник поезда"
+        effects:
+          safety: -20
+          competences: {safety: -3}
+        goto: security
+
+  aggression:
+    speaker: passenger
+    text: >-
+      «Ты что себе позволяешь? Я жалобу напишу, тебя уволят!» — пассажир
+      повышает голос, подходит вплотную. Мать ребёнка встаёт с места.
+    timer: 15
+    critical: true
+    timeout:
+      goto: security
+      reason: "Конфликт развивается без вмешательства: в него включаются другие пассажиры"
+      effects:
+        loyalty: -8
+        safety: -12
+    options:
+      - id: distance
+        step: acknowledge
+        text: "Отступить на шаг: «Я готов вам помочь, но прошу общаться корректно»"
+        reason: "Дистанция и корректная формула — рекомендованная реакция на грубость (ситуация 24)"
+        effects:
+          loyalty: 5
+          safety: 8
+          competences: {deescalation: 3, safety: 1}
+        goto: security
+      - id: argue_back
+        step: action
+        text: "«Пишите куда хотите» — ответить в тон"
+        reason: "Ответ в тон снимает последний барьер: конфликт становится публичным"
+        better: "Не вступать в спор: держаться достойно и предложить варианты решения"
+        effects:
+          loyalty: -10
+          safety: -10
+          competences: {deescalation: -3, service: -2}
+        goto: bad_end
+
+  security:
+    speaker: narrator
+    text: >-
+      До Петербурга сорок минут. Пассажир вернулся на место, но продолжает
+      громко разговаривать. Рядом семья с ребёнком.
+    timer: 25
+    timeout:
+      goto: tense_end
+      reason: "Ситуация оставлена без завершения — пассажиры рядом ехали в напряжении"
+      effects:
+        loyalty: -5
+        safety: -5
+    options:
+      - id: ptb
+        step: solution
+        text: "Вызвать сотрудников ПТБ и начальника поезда, предупредить о передаче полиции на вокзале"
+        reason: "При нарушении общественного порядка начальник поезда вправе передать пассажира полиции (ситуации 6, 21)"
+        effects:
+          safety: 15
+          loyalty: -2
+          competences: {safety: 3, teamwork: 2}
+          set: [ptb_called]
+        goto: family
+      - id: move_family
+        step: solution
+        text: "Тихо предложить семье с ребёнком пересесть на свободные места подальше"
+        reason: "Комфорт и безопасность соседей восстанавливаются без публичного конфликта"
+        effects:
+          loyalty: 8
+          safety: 6
+          competences: {service: 3, deescalation: 2}
+          set: [family_moved]
+        goto: family
+      - id: ignore
+        step: action
+        text: "Оставить как есть: до Петербурга недолго"
+        reason: "Снижение комфорта пассажиров рядом — тоже зона ответственности проводника"
+        better: "Даже без нарушения порядка соседей стоит пересадить, а бригаду — предупредить"
+        effects:
+          loyalty: -8
+          safety: -6
+          competences: {service: -2}
+        goto: tense_end
+
+  family:
+    speaker: narrator
+    text: >-
+      Мать ребёнка благодарит взглядом. Пассажир засыпает в кресле.
+      Через двадцать минут — Петербург.
+    timer: 20
+    timeout:
+      goto: quiet_end
+      reason: "Пассажиров рядом не спросили о комфорте — обратная связь не собрана"
+      effects:
+        loyalty: -3
+    options:
+      - id: feedback
+        step: assure
+        text: "Подойти к соседним рядам: «Благодарю за понимание. Всё ли сейчас комфортно?»"
+        reason: "Сбор обратной связи после инцидента прямо предписан методичкой"
+        effects:
+          loyalty: 10
+          competences: {service: 3}
+        goto: good_end
+      - id: wake
+        step: action
+        text: "Разбудить пассажира и предупредить о прибытии заранее"
+        reason: "Предупреждение о выходе — обязанность проводника (ситуация 38)"
+        requires: [ptb_called]
+        effects:
+          loyalty: 4
+          safety: 4
+          competences: {safety: 1, service: 1}
+        goto: good_end
+      - id: nothing
+        step: action
+        text: "Вернуться в служебную зону"
+        reason: "Инцидент закрыт формально, но пассажиры рядом остались без внимания"
+        effects:
+          loyalty: -2
+        goto: quiet_end
+
+  good_end:
+    ending: good
+    text: >-
+      Петербург. Пассажира встречает наряд, соседи сходят спокойно, двое
+      благодарят лично. В отчёте начальника поезда — предотвращённый конфликт,
+      а не разбор происшествия.
+
+  quiet_end:
+    ending: neutral
+    text: >-
+      Рейс закончился без происшествий, но семья с ребёнком ехала сорок минут
+      в напряжении, а инцидент в отчёте описан одной строкой.
+
+  tense_end:
+    ending: neutral
+    text: >-
+      Поезд прибыл, конфликта удалось избежать по случайности: пассажир уснул.
+      В анкете рейса двое отметили «некомфортную атмосферу в вагоне».
+
+  bad_end:
+    ending: bad
+    text: >-
+      На вокзале пассажира передают полиции, но запись спора с проводником
+      уже разошлась по чатам. Разбор в депо: конфликт можно было закрыть
+      на первой же реплике.

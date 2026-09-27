@@ -1,0 +1,63 @@
+# Достижения выдаются за поведение в рейсе, а не за количество попыток.
+# Условия проверяются модулем app/achievements.py; неизвестное поле условия —
+# ошибка, а не молчаливое «всегда истинно».
+achievements:
+  - id: first-run
+    title: Первый рейс
+    description: Завершён первый сценарий на тренажёре
+    icon: "🚄"
+    condition:
+      runs_completed: 1
+
+  - id: cold-head
+    title: Холодная голова
+    description: Рейс пройден без единого пропущенного таймера
+    icon: "🧊"
+    condition:
+      max_timeouts: 0
+      min_score: 70
+
+  - id: no-complaints
+    title: Ни одной жалобы
+    description: Лояльность пассажира выше 90 на финише рейса
+    icon: "💚"
+    condition:
+      min_loyalty: 90
+
+  - id: safety-first
+    title: Безопасность прежде всего
+    description: Рейтинг безопасности не опускался ниже 90
+    icon: "🛡️"
+    condition:
+      min_safety: 90
+
+  - id: role-model
+    title: По ролевой модели
+    description: "Признать → правило → решение → заверить: сервисная компетенция +6 за рейс"
+    icon: "🗣️"
+    condition:
+      min_competence:
+        service: 6
+
+  - id: crew-player
+    title: Своя бригада
+    description: Начальник поезда и ПТБ привлечены вовремя — работа с бригадой +5
+    icon: "📻"
+    condition:
+      min_competence:
+        teamwork: 5
+
+  - id: clean-flight
+    title: Чистый рейс
+    description: Итоговый балл 95 и выше с благополучным финалом
+    icon: "⭐"
+    condition:
+      min_score: 95
+      ending: good
+
+  - id: veteran
+    title: Ветеран маршрута
+    description: Пройдено десять рейсов
+    icon: "🏅"
+    condition:
+      runs_completed: 10

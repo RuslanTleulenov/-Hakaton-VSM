@@ -1,0 +1,268 @@
+id: medical
+title: Пассажиру стало плохо
+summary: >-
+  Вагон комфорт-класса, перегон Москва — Тверь. Пассажирка у окна побледнела
+  и держится за грудь. До остановки семь минут — всё, что можно сделать через
+  станцию, нужно решить сейчас.
+segment: Москва — Тверь
+minutes_to_stop: 7
+car_class: комфорт
+difficulty: 3
+start_loyalty: 70
+start_safety: 85
+sources:
+  - "«Примеры ситуаций взаимодействия поездного персонала с пассажирами», ситуации 19, 28, 29"
+  - "СТО РЖД 03.013–2026, требования к оснащённости вагонов (аптечка, связь)"
+start: notice
+
+nodes:
+  notice:
+    speaker: narrator
+    text: >-
+      Пассажирка 12-го места побледнела, дышит часто, держится за грудь.
+      Соседи начинают оборачиваться. До Твери семь минут.
+    timer: 20
+    critical: true
+    timeout:
+      goto: delayed_start
+      reason: "Пауза у кресла пассажирки: тревога в салоне выросла, время до станции потрачено"
+      effects:
+        loyalty: -8
+        safety: -10
+    options:
+      - id: ask
+        step: acknowledge
+        text: "Подойти: «Я рядом. Подскажите, что вы чувствуете?»"
+        reason: "Признание ситуации и оценка состояния — первый шаг по методичке (ситуация 19)"
+        effects:
+          loyalty: 8
+          safety: 4
+          competences: {service: 2, deescalation: 1}
+          set: [assessed]
+        goto: chief
+      - id: pills
+        step: solution
+        text: "Достать из личной сумки корвалол и предложить пассажирке"
+        reason: "Личные лекарства выдавать нельзя: реакция непредсказуема, ответственность на проводнике (ситуация 28)"
+        better: "Вместо своих лекарств — начальник поезда, аптечка, объявление о медработниках среди пассажиров"
+        effects:
+          loyalty: 3
+          safety: -20
+          competences: {safety: -3}
+          set: [gave_pills]
+        goto: chief
+      - id: announce
+        step: action
+        text: "Сразу объявить по громкой связи: «Есть ли в поезде врач?»"
+        reason: "Объявление уместно, но до оценки состояния оно поднимает тревогу во всём составе"
+        better: "Сначала подойти и оценить состояние, потом привлекать медиков среди пассажиров"
+        effects:
+          loyalty: -2
+          safety: 2
+          competences: {teamwork: 1}
+          set: [announced]
+        goto: chief
+
+  delayed_start:
+    speaker: passenger
+    text: >-
+      Соседка пассажирки машет вам рукой: «Девушке плохо, вы не видите?»
+      Пассажирка почти не отвечает на вопросы.
+    timer: 15
+    critical: true
+    timeout:
+      goto: bad_end
+      reason: "Помощь так и не начата до станции — поезд прошёл Тверь без вызова медиков"
+      effects:
+        loyalty: -15
+        safety: -20
+    options:
+      - id: late_ask
+        step: acknowledge
+        text: "«Я сожалею, что не подошёл раньше. Я рядом, сейчас организуем помощь»"
+        reason: "Признание задержки честнее оправданий и возвращает контакт"
+        effects:
+          loyalty: 6
+          safety: 3
+          competences: {service: 1}
+          set: [assessed]
+        goto: chief
+
+  chief:
+    speaker: narrator
+    text: >-
+      Состояние не улучшается. По рации доступен начальник поезда, до Твери
+      пять минут. На станции стоянка — одна минута.
+    timer: 25
+    critical: true
+    timeout:
+      goto: no_medics
+      reason: "Начальник поезда не вызван вовремя — медики к платформе не успевают"
+      effects:
+        safety: -15
+        loyalty: -5
+    options:
+      - id: radio
+        step: solution
+        text: "Вызвать начальника поезда по рации и попросить медиков к платформе в Твери"
+        reason: "Вызов через начальника поезда — штатный порядок; медики встречают состав на остановке"
+        effects:
+          loyalty: 6
+          safety: 15
+          competences: {safety: 3, teamwork: 3}
+          set: [medics_called]
+        goto: care
+      - id: doctors_onboard
+        step: action
+        text: "Попросить начальника поезда объявить поиск медработника среди пассажиров"
+        reason: "Методичка прямо предусматривает поиск медиков среди пассажиров (ситуация 19)"
+        effects:
+          loyalty: 3
+          safety: 8
+          competences: {teamwork: 2}
+          set: [announced, chief_informed]
+        goto: care
+      - id: alone
+        step: action
+        text: "Справиться самому: принести воды и подождать до Твери"
+        reason: "Начальник поезда не знает об инциденте — бригада не подготовила встречу на станции"
+        better: "Информировать начальника поезда любым доступным способом — это обязанность, а не выбор"
+        effects:
+          loyalty: 2
+          safety: -12
+          competences: {safety: -2, teamwork: -2}
+        goto: no_medics
+
+  care:
+    speaker: passenger
+    text: >-
+      «Мне неловко, столько людей смотрит… Может, не надо никого вызывать,
+      я потерплю до Петербурга».
+    timer: 20
+    timeout:
+      goto: finish_soft
+      reason: "Молчание в ответ на просьбу — пассажирка осталась один на один со страхом"
+      effects:
+        loyalty: -6
+    options:
+      - id: rule_first
+        step: rule
+        text: "«Обращаю ваше внимание: при таком состоянии осмотр медиком обязателен»"
+        reason: "Правило названо верно, но без признания чувств пассажирки"
+        effects:
+          loyalty: 1
+          safety: 5
+          competences: {safety: 1}
+        goto: privacy
+      - id: empathy
+        step: acknowledge
+        text: "«Понимаю, что вам неловко. Мне важно, чтобы вас осмотрели — так спокойнее и вам, и мне»"
+        reason: "Признание ситуации снимает стыд: пассажирка перестаёт сопротивляться помощи"
+        effects:
+          loyalty: 9
+          safety: 4
+          competences: {service: 2, deescalation: 2}
+        goto: privacy
+      - id: agree
+        step: solution
+        text: "«Хорошо, как скажете» — отменить вызов медиков"
+        reason: "Решение о медпомощи не передаётся пассажиру: риск остаётся на борту до Петербурга"
+        better: "Мягко настоять: безопасность не предмет договорённости, но объяснить её заботой, а не правилом"
+        effects:
+          loyalty: 5
+          safety: -25
+          competences: {safety: -3}
+          clear: [medics_called]
+        goto: finish_soft
+
+  privacy:
+    speaker: narrator
+    text: >-
+      Соседи по креслам продолжают смотреть. Пассажирка прикрывает лицо рукой.
+      До остановки три минуты.
+    timer: 20
+    timeout:
+      goto: finish_ok
+      reason: "Внимание салона осталось без внимания проводника"
+      effects:
+        loyalty: -4
+    options:
+      - id: screen
+        step: solution
+        text: "Попросить соседей дать место, принести воду, встать так, чтобы закрыть пассажирку от салона"
+        reason: "Спокойная обстановка и вода — рекомендованные действия при дурноте и панической атаке (ситуации 28, 29)"
+        effects:
+          loyalty: 8
+          safety: 3
+          competences: {service: 2, deescalation: 1}
+        goto: finish_ok
+      - id: breathing
+        step: solution
+        text: "Помочь дышать «по квадрату» и остаться рядом до станции"
+        reason: "Дыхание «по квадрату» прямо рекомендовано методичкой при сильном волнении"
+        effects:
+          loyalty: 7
+          safety: 4
+          competences: {service: 2, deescalation: 2}
+        goto: finish_ok
+      - id: leave
+        step: action
+        text: "Отойти к служебной зоне, чтобы не привлекать внимания"
+        reason: "Пассажирку в таком состоянии нельзя оставлять без внимания (ситуация 29)"
+        better: "Остаться рядом: присутствие проводника — часть помощи, а не вежливость"
+        effects:
+          loyalty: -6
+          safety: -8
+          competences: {service: -2}
+        goto: finish_ok
+
+  finish_ok:
+    ending: good
+    text: >-
+      Тверь. Двери открываются, на платформе — медицинская бригада. Пассажирку
+      осматривают, состояние стабильное. Начальник поезда фиксирует инцидент,
+      соседи благодарят за спокойную работу.
+
+  finish_soft:
+    ending: neutral
+    text: >-
+      Тверь пройдена. Пассажирке немного лучше, но до Петербурга она едет без
+      осмотра, а вы каждые десять минут подходите проверить состояние.
+      Формально инцидент не закрыт.
+
+  no_medics:
+    speaker: chief
+    text: >-
+      Начальник поезда появляется в вагоне сам: «Почему я узнаю об этом от
+      бортинженера? Медиков в Твери не будет, мы уже отправляемся».
+    timer: 15
+    timeout:
+      goto: bad_end
+      reason: "Ответа нет — бригада узнаёт о состоянии пассажирки последней"
+      effects:
+        safety: -10
+    options:
+      - id: report
+        step: solution
+        text: "Доложить состояние и попросить вызвать медиков к следующей остановке"
+        reason: "Инцидент возвращён в штатный порядок, хоть и с потерей времени"
+        effects:
+          loyalty: 3
+          safety: 10
+          competences: {teamwork: 2}
+        goto: finish_soft
+      - id: excuse
+        step: action
+        text: "«Я думал, обойдётся» — вернуться к обслуживанию"
+        reason: "Инцидент остался незафиксированным, ответственность размыта"
+        effects:
+          safety: -10
+          competences: {safety: -2, teamwork: -2}
+        goto: bad_end
+
+  bad_end:
+    ending: bad
+    text: >-
+      Петербург. Пассажирку встречает скорая, вызванная её родственниками,
+      а не бригадой. Инцидент разбирают в депо: помощь была доступна на
+      каждом перегоне и не была организована.
