@@ -60,7 +60,7 @@ python -m venv .venv
 - Интерфейс — <http://localhost:8040>
 - OpenAPI/Swagger — <http://localhost:8040/docs>
 
-Тесты:
+Тесты (18 штук: ядро и API):
 
 ```bash
 .venv/Scripts/python -m pytest backend/tests -q
