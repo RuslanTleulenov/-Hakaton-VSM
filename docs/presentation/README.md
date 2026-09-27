@@ -1,7 +1,11 @@
 # Презентация проекта
 
-`peregon.pptx` — 14 слайдов для защиты. Скриншоты в ней настоящие: сняты
-с работающего стенда, а не нарисованы.
+`peregon.pptx` — 16 слайдов для защиты, свёрстаны в **официальном шаблоне
+хакатона Московского транспорта**: фон-паттерн, логотипы МТТЕХ и заголовочный
+знак взяты из `ресурсы/Презентация МТТЕХ.pptx` и лежат в `template/`,
+холст 10×5.625″ и палитра — оттуда же.
+
+Скриншоты в колоде настоящие: сняты с работающего стенда, а не нарисованы.
 
 ## Как пересобрать
 
@@ -17,8 +21,8 @@ python docs/presentation/shots.py docs/presentation/shots
 node docs/presentation/build.js
 ```
 
-`build.js` ожидает рядом папку `shots/` со скриншотами и файлы `arch.png`,
-`seq.png` — растры диаграмм из `docs/diagrams/`:
+`build.js` ожидает рядом папку `shots/` со скриншотами, ассеты шаблона
+в `template/` и файл `arch.png` — растр диаграммы из `docs/diagrams/`:
 
 ```bash
 node -e "const s=require('sharp'),f=require('fs');s(f.readFileSync('docs/diagrams/components.svg')).resize({width:1800}).png().toFile('docs/presentation/arch.png')"

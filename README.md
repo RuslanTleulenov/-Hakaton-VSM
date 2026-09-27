@@ -56,17 +56,30 @@
 
 ## Запуск
 
-Нужен Python 3.11+ и ничего больше: база — SQLite, фронтенд без сборки.
+Нужен **только Python 3.11 или новее**. Ни Docker, ни Node, ни внешняя СУБД
+не требуются: база — SQLite, фронтенд без сборки.
+
+```bash
+git clone <адрес репозитория> vsm-trainer
+cd vsm-trainer
+python run.py
+```
+
+`run.py` сам создаёт виртуальное окружение, ставит зависимости, наполняет
+базу демо-данными при первом запуске и поднимает сервер. Полезные флаги:
+`--port 8080`, `--reset` (пересоздать базу), `--no-seed` (пустая база).
+
+- Интерфейс — <http://localhost:8040>
+- OpenAPI/Swagger — <http://localhost:8040/docs>
+
+Если окружение нужно собрать вручную:
 
 ```bash
 python -m venv .venv
 .venv/Scripts/python -m pip install -r requirements.txt   # Linux/macOS: .venv/bin/python
-.venv/Scripts/python backend/seed.py                      # демо-данные: 5 проводников, рейтинг, токен интеграции
+.venv/Scripts/python backend/seed.py
 .venv/Scripts/python -m uvicorn app.main:app --app-dir backend --port 8040
 ```
-
-- Интерфейс — <http://localhost:8040>
-- OpenAPI/Swagger — <http://localhost:8040/docs>
 
 Тесты (33: ядро, рейсы, геймификация, API) и проверка контента:
 
